@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import httpx
@@ -60,3 +61,26 @@ async def test_gemini_rejection_shows_reason_without_exposing_key():
     email = EmailRecord(email_id="demo", **{"from": "demo@example.com"}, subject="Check BL", body="", attachments=[])
     with pytest.raises(ValueError, match=r"400.*Bad setting for \[REDACTED\]"):
         await AIService("test-key", client=client).classify(email)
+
+
+@pytest.mark.asyncio
+async def test_gemini_retries_temporary_503_then_returns_classification(monkeypatch):
+    attempts = 0
+
+    def handler(request):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(503, json={"error": {"message": "High demand"}})
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": json.dumps({"category": "GENERAL", "reason": "Greeting", "uncertain": False})}]}}]})
+
+    async def no_delay(seconds):
+        pass
+
+    monkeypatch.setattr(asyncio, "sleep", no_delay)
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    email = EmailRecord(email_id="demo", **{"from": "demo@example.com"}, subject="Hello", body="", attachments=[])
+    result = await AIService("test-key", client=client).classify(email)
+
+    assert result.category is EmailCategory.GENERAL
+    assert attempts == 2

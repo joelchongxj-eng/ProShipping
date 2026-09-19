@@ -1,5 +1,7 @@
+import asyncio
 import json
 import os
+import random
 
 import httpx
 from pydantic import ValidationError
@@ -31,11 +33,15 @@ class AIService:
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"responseFormat": {"text": {"mimeType": "APPLICATION_JSON"}}},
         }
-        if self.client is None:
-            async with httpx.AsyncClient(timeout=60) as client:
-                response = await client.post(url, headers={"x-goog-api-key": self.api_key}, json=payload)
-        else:
-            response = await self.client.post(url, headers={"x-goog-api-key": self.api_key}, json=payload)
+        for attempt in range(3):
+            if self.client is None:
+                async with httpx.AsyncClient(timeout=60) as client:
+                    response = await client.post(url, headers={"x-goog-api-key": self.api_key}, json=payload)
+            else:
+                response = await self.client.post(url, headers={"x-goog-api-key": self.api_key}, json=payload)
+            if response.status_code != 503 or attempt == 2:
+                break
+            await asyncio.sleep(2**attempt + random.uniform(0, 0.25))
         if response.is_error:
             try:
                 error = response.json().get("error", {})

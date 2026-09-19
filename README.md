@@ -37,6 +37,17 @@ confidence value means the evidence check passed; it is not a measured model
 probability. Live Gemini accuracy has not yet been evaluated; the automated
 tests use synthetic model responses.
 
+To check one real TXT pair before processing the whole inbox, run this from
+`backend` in the same PowerShell session where `GEMINI_API_KEY` is set:
+
+```powershell
+& .\.venv\Scripts\python.exe -m app.evaluate_pair "<path-to-SI.txt>" "<path-to-BL.txt>"
+```
+
+The command prints the detected document types, seven field comparisons, and
+overall status. It sends the two document texts to Gemini; it does not write
+the API key or a submission file.
+
 ## Run locally
 
 First start the competition data service on port 8080 from its separate local directory:
