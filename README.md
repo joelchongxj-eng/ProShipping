@@ -32,7 +32,8 @@ Save corrections and approved equivalences to support future checks, then rerun 
 6. Manual Document Upload
 Allow users to upload an SI and a draft BL for verification.
 After processing, display the comparison result, mismatched fields, confidence information, and any issues requiring review.
-User Workflow
+
+## User Workflow
 1. Upload an SI and its corresponding draft BL.
 2. View the verification status on the dashboard.
 3. Open the case to inspect field comparisons and evidence.
