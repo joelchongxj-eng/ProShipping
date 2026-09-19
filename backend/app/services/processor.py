@@ -14,7 +14,7 @@ from app.models import (
     ReviewReason,
 )
 from app.services.ai_models import DocumentType
-from app.services.ai_service import AIResponseError, AIService
+from app.services.ai_service import AIResponseError, AIService, GeminiRequestError
 from app.services.classifier import classify_email
 from app.services.comparison import compare_documents
 from app.services.text_extractor import extract_shipping_fields
@@ -43,7 +43,7 @@ class CaseProcessor:
             if self.ai_service:
                 try:
                     classification = await self.ai_service.classify(email)
-                except (AIResponseError, httpx.HTTPError):
+                except (AIResponseError, GeminiRequestError, httpx.HTTPError):
                     return CaseRecord(email=email, category=classify_email(email), status=CaseStatus.FAILED)
                 category = classification.category
                 if classification.uncertain:
@@ -106,7 +106,7 @@ class CaseProcessor:
                     bl_attachment=bl_path,
                     review_reason=ReviewReason.UNREADABLE,
                 )
-            except (AIResponseError, httpx.HTTPError):
+            except (AIResponseError, GeminiRequestError, httpx.HTTPError):
                 return CaseRecord(
                     email=email,
                     category=category,

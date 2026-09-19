@@ -12,6 +12,9 @@ def service_reply(payloads):
 
     def handler(request):
         assert request.headers["x-goog-api-key"] == "test-key"
+        assert json.loads(request.content)["generationConfig"] == {
+            "responseFormat": {"text": {"mimeType": "APPLICATION_JSON"}}
+        }
         return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": json.dumps(next(replies))}]}}]})
 
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))
@@ -46,3 +49,14 @@ async def test_rejects_fabricated_evidence_after_one_retry():
     client = service_reply([bad, bad])
     with pytest.raises(AIResponseError, match="evidence"):
         await AIService("test-key", client=client).extract_text("SHIPPING INSTRUCTION\nShipper: Real Co", "case_SI.txt")
+
+
+@pytest.mark.asyncio
+async def test_gemini_rejection_shows_reason_without_exposing_key():
+    def handler(request):
+        return httpx.Response(400, json={"error": {"message": "Bad setting for test-key"}})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    email = EmailRecord(email_id="demo", **{"from": "demo@example.com"}, subject="Check BL", body="", attachments=[])
+    with pytest.raises(ValueError, match=r"400.*Bad setting for \[REDACTED\]"):
+        await AIService("test-key", client=client).classify(email)

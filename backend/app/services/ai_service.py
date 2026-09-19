@@ -13,6 +13,10 @@ class AIResponseError(ValueError):
     pass
 
 
+class GeminiRequestError(ValueError):
+    pass
+
+
 class AIService:
     def __init__(self, api_key: str | None = None, *, model: str | None = None, client: httpx.AsyncClient | None = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
@@ -23,13 +27,24 @@ class AIService:
 
     async def _generate(self, prompt: str) -> dict:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
-        payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}}
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"responseFormat": {"text": {"mimeType": "APPLICATION_JSON"}}},
+        }
         if self.client is None:
             async with httpx.AsyncClient(timeout=60) as client:
                 response = await client.post(url, headers={"x-goog-api-key": self.api_key}, json=payload)
         else:
             response = await self.client.post(url, headers={"x-goog-api-key": self.api_key}, json=payload)
-        response.raise_for_status()
+        if response.is_error:
+            try:
+                error = response.json().get("error", {})
+                message = error.get("message", "Request rejected") if isinstance(error, dict) else str(error)
+            except ValueError:
+                message = "Request rejected"
+            raise GeminiRequestError(
+                f"Gemini HTTP {response.status_code}: {message.replace(self.api_key, '[REDACTED]')}"
+            )
         try:
             return json.loads(response.json()["candidates"][0]["content"]["parts"][0]["text"])
         except (KeyError, IndexError, TypeError, ValueError) as exc:
