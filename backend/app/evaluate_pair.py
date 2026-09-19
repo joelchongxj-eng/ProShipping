@@ -7,12 +7,12 @@ from pathlib import Path
 from app.services.ai_models import DocumentType
 from app.services.ai_service import AIService
 from app.services.comparison import compare_documents
-from app.services.document_text import attachment_text
+from app.services.document_text import attachment_text_with_vision
 
 
 async def evaluate_pair(si_path: Path, bl_path: Path, service: AIService) -> str:
-    si_text = attachment_text(si_path.read_bytes(), si_path.name)
-    bl_text = attachment_text(bl_path.read_bytes(), bl_path.name)
+    si_text = await attachment_text_with_vision(si_path.read_bytes(), si_path.name, service)
+    bl_text = await attachment_text_with_vision(bl_path.read_bytes(), bl_path.name, service)
     si = await service.extract_text(si_text, si_path.name)
     bl = await service.extract_text(bl_text, bl_path.name)
     if si.document_type is not DocumentType.SI or bl.document_type is not DocumentType.BL:

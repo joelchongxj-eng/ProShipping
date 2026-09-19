@@ -203,3 +203,29 @@ async def test_groq_retries_temporary_503_then_returns_classification(monkeypatc
 
     assert result.category is EmailCategory.GENERAL
     assert attempts == 2
+
+
+@pytest.mark.asyncio
+async def test_transcribes_scan_with_groq_vision_using_same_key():
+    def handler(request):
+        assert request.headers["Authorization"] == "Bearer test-key"
+        payload = json.loads(request.content)
+        assert payload["model"] == "qwen/qwen3.8-27b"
+        assert payload["reasoning_effort"] == "none"
+        content = payload["messages"][0]["content"]
+        assert content[1]["image_url"]["url"] == "data:image/png;base64,iVBORw=="
+        return httpx.Response(200, json={"choices": [{"message": {"content": "SHIPPING INSTRUCTION\nContainer Count: 2"}}]})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    text = await AIService("test-key", client=client).transcribe_image(b"\x89PNG", "image/png")
+    assert text == "SHIPPING INSTRUCTION\nContainer Count: 2"
+
+
+@pytest.mark.asyncio
+async def test_vision_refuses_empty_transcription():
+    def handler(request):
+        return httpx.Response(200, json={"choices": [{"message": {"content": "UNREADABLE"}}]})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    with pytest.raises(AIResponseError, match="unreadable"):
+        await AIService("test-key", client=client).transcribe_image(b"\x89PNG", "image/png")

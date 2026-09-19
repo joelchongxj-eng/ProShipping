@@ -14,19 +14,21 @@ ProShipping verifies Shipping Instructions (SI) against Draft Bills of Lading (B
 - Complete 520-entry submission export
 - Test suite and first Docker self-evaluation
 
-Scanned-document AI extraction, review actions, escalation, and persistence are scheduled for the next milestones.
+Review actions, escalation, and persistence are scheduled for the next milestones.
 
 ## Optional Day 1 AI mode
 
 The `data` branch includes an optional Groq path for email classification and
-TXT, text-based PDF, DOCX, and XLSX SI/BL field extraction. Scanned or corrupt PDFs go to
-review. The default deterministic TXT path remains available.
+TXT, PDF, DOCX, and XLSX SI/BL field extraction. Image-only PDF pages with one
+embedded image are transcribed with Groq vision before the seven-field check;
+corrupt or unreadable PDFs go to review. The default deterministic TXT path remains available.
 Set these environment variables before starting the backend to enable AI:
 
 ```powershell
 $env:AI_ENABLED = "1"
 $env:GROQ_API_KEY = Read-Host "Groq API key" -MaskInput
 $env:GROQ_MODEL = "openai/gpt-oss-20b"
+$env:GROQ_VISION_MODEL = "qwen/qwen3.8-27b" # optional; used only for scanned PDFs
 ```
 
 Keep the API key out of Git. AI mode calls Groq for every email and each supported
@@ -39,11 +41,15 @@ backend field schema, and each cited text excerpt is checked against the source.
 Missing fields and wrong document
 types go to review; AI request failures are marked `FAILED`. The `0.85`
 confidence value means the evidence check passed; it is not a measured model
-probability. Selected TXT and text-PDF pairs passed live smoke checks with Groq
+probability. Selected TXT, text-PDF, DOCX, and XLSX pairs passed live smoke checks with Groq
 (see `docs/day-1-baseline.md`), but full-dataset AI accuracy has not been measured.
-The automated tests use synthetic model responses.
+Scanned-PDF image extraction was checked offline on all six supplied scans. A
+live `email_512` check with Groq vision found two OCR spelling differences;
+cropping large page margins resolved the port difference, and party-name
+normalization handles the `FAREAST`/`FAR EAST` spacing variant. Broader scanned
+PDF accuracy has not been measured. The automated tests use synthetic model responses.
 
-To check one real TXT, text-based PDF, DOCX, or XLSX pair before processing the whole inbox, run this from
+To check one real TXT, PDF, DOCX, or XLSX pair before processing the whole inbox, run this from
 `backend` in the same PowerShell session where `GROQ_API_KEY` is set:
 
 ```powershell
@@ -51,7 +57,8 @@ To check one real TXT, text-based PDF, DOCX, or XLSX pair before processing the 
 ```
 
 The command prints the detected document types, seven field comparisons, and
-overall status. It sends the two document texts to Groq; it does not write
+overall status. For scanned PDFs, it first sends embedded page images to Groq vision;
+otherwise it sends extracted text. It does not write
 the API key or a submission file.
 
 ## Run locally

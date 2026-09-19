@@ -4,6 +4,7 @@ from app.models import ExtractedField, ShippingFields
 from app.services.normalization import (
     normalize_container_count,
     normalize_decimal,
+    normalize_party,
     normalize_text,
     weight_to_kg,
 )
@@ -43,6 +44,8 @@ def _build_field(name: str, raw_value: str, evidence: str) -> ExtractedField:
     elif name == "container_count":
         count = normalize_container_count(raw_value)
         normalized = str(count) if count is not None else normalize_text(raw_value)
+    elif name in {"shipper", "consignee", "notify_party"}:
+        normalized = normalize_party(raw_value)
     else:
         normalized = normalize_text(raw_value)
     return ExtractedField(

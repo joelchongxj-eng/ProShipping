@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import os
 import random
@@ -113,18 +114,11 @@ class AIService:
         if not self.api_key:
             raise ValueError("Set GROQ_API_KEY before using AIService")
         self.model = model or os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+        self.vision_model = os.getenv("GROQ_VISION_MODEL", "qwen/qwen3.8-27b")
         self.client = client
 
-    async def _generate(self, prompt: str, response_format: dict) -> dict:
+    async def _request(self, payload: dict) -> httpx.Response:
         url = "https://api.groq.com/openai/v1/chat/completions"
-        payload = {
-            "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
-            "response_format": response_format,
-            "max_completion_tokens": 4096 if response_format is DOCUMENT_FORMAT else 1024,
-        }
-        if self.model.startswith("openai/gpt-oss-"):
-            payload["reasoning_effort"] = "low"
         for attempt in range(3):
             if self.client is None:
                 async with httpx.AsyncClient(timeout=60) as client:
@@ -147,10 +141,41 @@ class AIService:
             raise GroqRequestError(
                 f"Groq HTTP {response.status_code}: {message.replace(self.api_key, '[REDACTED]')}"
             )
+        return response
+
+    async def _generate(self, prompt: str, response_format: dict) -> dict:
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": response_format,
+            "max_completion_tokens": 4096 if response_format is DOCUMENT_FORMAT else 1024,
+        }
+        if self.model.startswith("openai/gpt-oss-"):
+            payload["reasoning_effort"] = "low"
+        response = await self._request(payload)
         try:
             return json.loads(response.json()["choices"][0]["message"]["content"])
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise AIResponseError("Model returned an invalid JSON response") from exc
+
+    async def transcribe_image(self, image: bytes, mime_type: str) -> str:
+        payload = {
+            "model": self.vision_model,
+            "messages": [{"role": "user", "content": [
+                {"type": "text", "text": "Transcribe all visible shipping-document text exactly, preserving line breaks and field labels. Do not interpret, summarize, or add commentary. If the image is unreadable, reply UNREADABLE."},
+                {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64.b64encode(image).decode('ascii')}"}},
+            ]}],
+            "max_completion_tokens": 4096,
+            "reasoning_effort": "none",
+        }
+        response = await self._request(payload)
+        try:
+            text = response.json()["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise AIResponseError("Vision model returned an invalid response") from exc
+        if not isinstance(text, str) or not text.strip() or text.strip().upper() == "UNREADABLE":
+            raise AIResponseError("Scanned document is unreadable")
+        return text.strip()
 
     async def classify(self, email: EmailRecord) -> Classification:
         prompt = (

@@ -18,7 +18,7 @@ from app.services.ai_models import DocumentType
 from app.services.ai_service import AIResponseError, AIService, GroqRequestError
 from app.services.classifier import classify_email
 from app.services.comparison import compare_documents
-from app.services.document_text import DocumentReadError, attachment_text
+from app.services.document_text import DocumentReadError, attachment_text, attachment_text_with_vision
 from app.services.text_extractor import extract_shipping_fields
 
 
@@ -82,9 +82,11 @@ class CaseProcessor:
                     self.inbox.get_attachment(si_path),
                     self.inbox.get_attachment(bl_path),
                 )
-                si_text = attachment_text(si_text, si_path)
-                bl_text = attachment_text(bl_text, bl_path)
                 if self.ai_service:
+                    si_text, bl_text = await asyncio.gather(
+                        attachment_text_with_vision(si_text, si_path, self.ai_service),
+                        attachment_text_with_vision(bl_text, bl_path, self.ai_service),
+                    )
                     si_doc, bl_doc = await asyncio.gather(
                         self.ai_service.extract_text(si_text, si_path),
                         self.ai_service.extract_text(bl_text, bl_path),
@@ -100,6 +102,8 @@ class CaseProcessor:
                         )
                     si_fields, bl_fields = si_doc.fields, bl_doc.fields
                 else:
+                    si_text = attachment_text(si_text, si_path)
+                    bl_text = attachment_text(bl_text, bl_path)
                     si_fields = extract_shipping_fields(si_text)
                     bl_fields = extract_shipping_fields(bl_text)
             except (UnicodeDecodeError, OSError, PdfReadError, DocumentReadError):

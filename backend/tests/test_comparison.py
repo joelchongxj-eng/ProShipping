@@ -28,3 +28,11 @@ def test_changed_consignee_is_a_mismatch() -> None:
         "consignee"
     ]
 
+
+def test_fareast_spacing_matches_for_party_but_port_typos_still_mismatch() -> None:
+    si = extract_shipping_fields("Shipper: APRIL FAREAST (M) SDN BHD\nPort of Discharge: TUTICORRN, INDIA")
+    bl = extract_shipping_fields("Shipper: APRIL FAR EAST (M) SDN BHD\nPort of Discharge: TUTICORIN, INDIA")
+    fields = {item.field: item.status.value for item in compare_documents(si, bl).fields}
+    assert fields["shipper"] == "match"
+    assert fields["port_of_discharge"] == "mismatch"
+

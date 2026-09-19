@@ -33,7 +33,7 @@ After switching the optional AI mode to Groq `openai/gpt-oss-20b`, the team chec
 | `email_059` (text PDF) | All seven fields match | `MATCH`; all seven fields match |
 | `email_091` (TXT) | Container count differs: SI 3, BL 2 | `MISMATCH`; only `container_count` differs |
 
-These are smoke checks, not a full-dataset accuracy measurement. Scanned and corrupt PDFs remain unreadable. The Office-text reader extracted text from all 8 DOCX and 22 XLSX files in the supplied bundle. Two Office pairs were also checked against their source documents with Groq:
+These are smoke checks, not a full-dataset accuracy measurement. The Office-text reader extracted text from all 8 DOCX and 22 XLSX files in the supplied bundle. Two Office pairs were also checked against their source documents with Groq:
 
 | Pair | Formats | Hand-checked expectation | Groq result |
 | --- | --- | --- | --- |
@@ -41,4 +41,16 @@ These are smoke checks, not a full-dataset accuracy measurement. Scanned and cor
 | `email_055` | XLSX / DOCX | All seven fields match | `MATCH`; all seven fields match |
 
 These selected pairs do not establish Office-document accuracy across the whole dataset.
+
+The six image-only PDFs in the supplied bundle (`email_512`–`email_514`, SI and BL)
+each contain one embedded image; all six images can be extracted locally for the
+Groq vision OCR path. Two other PDFs (`email_511_BL` and `email_515_BL`) are corrupt
+and still require manual review. On `email_512`, a live Groq `qwen/qwen3.8-27b`
+check initially reported two false mismatches: `FAREAST` versus `FAR EAST` in
+the shipper name, and `TUTICORRN` versus `TUTICORIN` in the discharge port.
+Cropping surrounding whitespace resolved the port reading in a second live
+run. The remaining shipper spacing variant is now normalized only for party
+fields; this final normalization change was checked locally against the
+captured values, not by a third live API call. Broader OCR accuracy remains
+unmeasured.
 

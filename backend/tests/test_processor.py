@@ -12,7 +12,7 @@ from app.services.ai_service import AIService
 from app.services.processor import CaseProcessor
 
 from tests.test_extractor import BL_TEXT, SI_TEXT
-from tests.test_document_text import office_file
+from tests.test_document_text import image_pdf, office_file
 
 
 def pdf_with_text(text: str) -> bytes:
@@ -199,6 +199,34 @@ async def test_ai_sends_pdf_without_extractable_text_to_review() -> None:
     case = await CaseProcessor(inbox, ai_service=FakeAI()).process_email(inbox.email)
     assert case.status is CaseStatus.NEEDS_REVIEW
     assert case.review_reason is ReviewReason.UNREADABLE
+
+
+async def test_ai_processes_scanned_pdf_pair_through_vision() -> None:
+    class ScannedInbox(FakeInbox):
+        def __init__(self):
+            super().__init__()
+            self.email.attachments = [path.replace(".txt", ".pdf") for path in self.email.attachments]
+
+        async def get_attachment(self, path):
+            return image_pdf()
+
+    class FakeAI:
+        async def classify(self, email):
+            return Classification(category=EmailCategory.BL_COMPARISON, reason="Compare", uncertain=False)
+
+        async def transcribe_image(self, image, mime_type):
+            assert mime_type == "image/png"
+            return "SHIPPING INSTRUCTION\nContainer Count: 2"
+
+        async def extract_text(self, text, filename):
+            assert "Container Count: 2" in text
+            kind = DocumentType.SI if "_SI." in filename else DocumentType.BL
+            return ExtractedDocument(document_type=kind, fields=ShippingFields())
+
+    inbox = ScannedInbox()
+    case = await CaseProcessor(inbox, ai_service=FakeAI()).process_email(inbox.email)
+    assert case.status is CaseStatus.NEEDS_REVIEW
+    assert case.review_reason is ReviewReason.MISSING_VALUE
 
 
 @pytest.mark.parametrize("extension,member,xml", [

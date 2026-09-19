@@ -2,8 +2,11 @@ from io import BytesIO
 from zipfile import ZipFile
 
 import pytest
+from PIL import Image, ImageDraw
+from pypdf import PdfWriter
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject, NumberObject
 
-from app.services.document_text import attachment_text
+from app.services.document_text import _focus_scan_image, attachment_text, attachment_text_with_vision
 
 
 def office_file(member: str, xml: str) -> bytes:
@@ -11,6 +14,75 @@ def office_file(member: str, xml: str) -> bytes:
     with ZipFile(output, "w") as archive:
         archive.writestr(member, xml)
     return output.getvalue()
+
+
+def image_pdf() -> bytes:
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=100, height=100)
+    image = DecodedStreamObject()
+    image.set_data(bytes([255, 255, 255] * 4))
+    image.update({
+        NameObject("/Type"): NameObject("/XObject"),
+        NameObject("/Subtype"): NameObject("/Image"),
+        NameObject("/Width"): NumberObject(2),
+        NameObject("/Height"): NumberObject(2),
+        NameObject("/ColorSpace"): NameObject("/DeviceRGB"),
+        NameObject("/BitsPerComponent"): NumberObject(8),
+    })
+    page[NameObject("/Resources")] = DictionaryObject({
+        NameObject("/XObject"): DictionaryObject({NameObject("/Im1"): writer._add_object(image)})
+    })
+    content = DecodedStreamObject()
+    content.set_data(b"q 100 0 0 100 0 0 cm /Im1 Do Q")
+    page[NameObject("/Contents")] = writer._add_object(content)
+    output = BytesIO()
+    writer.write(output)
+    return output.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_scanned_pdf_uses_vision_transcription():
+    seen = []
+
+    class FakeVision:
+        async def transcribe_image(self, image: bytes, mime_type: str) -> str:
+            seen.append((image, mime_type))
+            return "SHIPPING INSTRUCTION\nContainer Count: 2"
+
+    text = await attachment_text_with_vision(image_pdf(), "case_SI.pdf", FakeVision())
+    assert text == "SHIPPING INSTRUCTION\nContainer Count: 2"
+    assert len(seen) == 1
+    assert seen[0][0].startswith(b"\x89PNG")
+    assert seen[0][1] == "image/png"
+
+
+@pytest.mark.asyncio
+async def test_blank_pdf_without_image_still_needs_review():
+    writer = PdfWriter()
+    writer.add_blank_page(width=100, height=100)
+    output = BytesIO()
+    writer.write(output)
+    with pytest.raises(ValueError, match="no extractable text|no image"):
+        await attachment_text_with_vision(output.getvalue(), "case_SI.pdf", object())
+
+
+def test_scan_image_focuses_on_dark_document_content():
+    source = Image.new("RGB", (200, 200), "white")
+    ImageDraw.Draw(source).rectangle((80, 80, 120, 120), fill="black")
+    original = BytesIO()
+    source.save(original, format="PNG")
+
+    focused = Image.open(BytesIO(_focus_scan_image(original.getvalue())))
+    assert focused.width < source.width
+    assert focused.height < source.height
+    assert focused.convert("L").getextrema()[0] == 0
+
+
+def test_scan_image_returns_png_even_when_source_is_jpeg():
+    source = Image.new("RGB", (100, 100), "white")
+    original = BytesIO()
+    source.save(original, format="JPEG")
+    assert _focus_scan_image(original.getvalue()).startswith(b"\x89PNG")
 
 
 def test_extracts_docx_paragraphs_and_table_cells_in_document_order():

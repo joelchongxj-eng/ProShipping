@@ -4,8 +4,11 @@ from io import BytesIO
 from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
 
+from PIL import Image
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
+
+from app.services.ai_service import AIResponseError, AIService
 
 
 class DocumentReadError(ValueError):
@@ -76,3 +79,42 @@ def attachment_text(content: bytes, path: str) -> str:
     if extension in {"docx", "xlsx"}:
         return _office_text(content, "." + extension)
     return content.decode("utf-8-sig")
+
+
+def _focus_scan_image(image_data: bytes) -> bytes:
+    image = Image.open(BytesIO(image_data)).convert("RGB")
+    dark = image.convert("L").point(lambda value: 255 if value < 180 else 0)
+    bounds = dark.getbbox()
+    if bounds is not None:
+        left, top, right, bottom = bounds
+        margin = 25
+        box = (max(0, left - margin), max(0, top - margin),
+               min(image.width, right + margin), min(image.height, bottom + margin))
+        image = image.crop(box)
+    output = BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
+async def attachment_text_with_vision(content: bytes, path: str, service: AIService) -> str:
+    try:
+        return attachment_text(content, path)
+    except PdfReadError as exc:
+        if not path.casefold().endswith(".pdf") or "no extractable text" not in str(exc):
+            raise
+    pages = PdfReader(BytesIO(content)).pages
+    lines = []
+    for page in pages:
+        if len(page.images) != 1:
+            raise DocumentReadError("Scanned PDF page has no image or multiple images")
+        try:
+            image = page.images[0]
+        except (ImportError, ValueError) as exc:
+            raise DocumentReadError("Scanned PDF image could not be read") from exc
+        try:
+            lines.append(await service.transcribe_image(_focus_scan_image(image.data), "image/png"))
+        except AIResponseError as exc:
+            raise DocumentReadError("Scanned PDF could not be transcribed") from exc
+    if not lines:
+        raise DocumentReadError("Scanned PDF has no pages")
+    return "\n".join(lines)

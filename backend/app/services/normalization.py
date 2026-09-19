@@ -8,6 +8,10 @@ def normalize_text(value: str) -> str:
     return " ".join(value.split())
 
 
+def normalize_party(value: str) -> str:
+    return re.sub(r"\bfareast\b", "far east", normalize_text(value))
+
+
 def weight_to_kg(value: str) -> Decimal | None:
     compact = value.upper().replace(",", "").strip()
     match = re.search(r"(-?\d+(?:\.\d+)?)\s*(MT|TONNES?|TONS?|KG|KGS)?\b", compact)

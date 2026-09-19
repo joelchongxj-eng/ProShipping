@@ -5,6 +5,7 @@ import pytest
 
 from app.evaluate_pair import evaluate_pair
 from app.services.ai_service import AIService
+from tests.test_document_text import image_pdf
 from tests.test_processor import groq_reply, pdf_with_text
 
 
@@ -69,5 +70,32 @@ async def test_evaluate_pair_accepts_text_pdf_files(tmp_path):
 
     service = AIService("test-key", client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
     report = await evaluate_pair(si, bl, service)
+    assert "Overall: MISMATCH" in report
+    assert "container_count: mismatch (SI=1, BL=2)" in report
+
+
+@pytest.mark.asyncio
+async def test_evaluate_pair_accepts_scanned_pdf_files(tmp_path):
+    si = tmp_path / "email_512_SI.pdf"
+    bl = tmp_path / "email_512_BL.pdf"
+    si.write_bytes(image_pdf())
+    bl.write_bytes(image_pdf())
+    replies = iter([
+        "SHIPPING INSTRUCTION\nContainer Count: 1",
+        "BILL OF LADING\nContainer Count: 2",
+    ])
+
+    def handler(request):
+        payload = json.loads(request.content)
+        if payload["model"].startswith("qwen/"):
+            return httpx.Response(200, json={"choices": [{"message": {"content": next(replies)}}]})
+        kind = "SI" if "email_512_SI.pdf" in payload["messages"][0]["content"] else "BL"
+        count = "1" if kind == "SI" else "2"
+        return groq_reply({"document_type": kind, "fields": {
+            "container_count": {"raw_value": count, "evidence": f"Container Count: {count}"},
+        }})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    report = await evaluate_pair(si, bl, AIService("test-key", client=client))
     assert "Overall: MISMATCH" in report
     assert "container_count: mismatch (SI=1, BL=2)" in report
