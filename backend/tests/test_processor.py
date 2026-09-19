@@ -185,6 +185,22 @@ def make_pdf(
     return content
 
 
+def pdf_search_bbox(content: bytes, page_number: int, text: str) -> dict[str, float]:
+    document = pymupdf.open(stream=content, filetype="pdf")
+    try:
+        matches = document[page_number - 1].search_for(text)
+        assert len(matches) == 1
+        rectangle = matches[0]
+        return {
+            "x0": rectangle.x0,
+            "y0": rectangle.y0,
+            "x1": rectangle.x1,
+            "y1": rectangle.y1,
+        }
+    finally:
+        document.close()
+
+
 PDF_CONTENT = make_pdf()
 
 
@@ -637,8 +653,21 @@ async def test_processor_maps_pdf_evidence_to_one_based_page_numbers() -> None:
     assert case.si_fields.gross_weight_kg.source is not None
     assert case.si_fields.shipper.source.page == 1
     assert case.si_fields.gross_weight_kg.source.page == 2
-    assert case.si_fields.shipper.source.locator is None
-    assert case.si_fields.gross_weight_kg.source.locator is None
+    shipper_locator = case.si_fields.shipper.source.locator
+    weight_locator = case.si_fields.gross_weight_kg.source.locator
+    assert shipper_locator is not None
+    assert weight_locator is not None
+    assert shipper_locator.model_dump() == {
+        "kind": "pdf",
+        "page": 1,
+        "bbox": pdf_search_bbox(content, 1, "APRIL FAR EAST (M) SDN BHD"),
+    }
+    assert weight_locator.model_dump() == {
+        "kind": "pdf",
+        "page": 2,
+        "bbox": pdf_search_bbox(content, 2, "21,577 KG"),
+    }
+    assert weight_locator.bbox.x0 > 56
     assert case.si_fields.shipper.source.filename == "attachments/email_pdf_SI.pdf"
     assert case.si_fields.gross_weight_kg.source.evidence_text == (
         "Gross Weight (KG): 21,577 KG"
@@ -660,6 +689,46 @@ async def test_processor_does_not_guess_pdf_page_when_evidence_is_duplicated() -
     assert case.si_fields.shipper is not None
     assert case.si_fields.shipper.source is not None
     assert case.si_fields.shipper.source.page is None
+    assert case.si_fields.shipper.source.locator is None
+
+
+async def test_processor_leaves_pdf_locator_null_when_raw_value_is_ambiguous() -> None:
+    rows = (
+        ("Shipper", "DUPLICATE COMPANY"),
+        ("Consignee", "DUPLICATE COMPANY"),
+        *PDF_ROWS[2:],
+    )
+    content = make_pdf((rows,))
+    inbox = AttachmentInbox(
+        {
+            "attachments/email_pdf_SI.pdf": content,
+            "attachments/email_pdf_BL.pdf": content,
+        }
+    )
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.si_fields is not None
+    assert case.si_fields.shipper is not None
+    assert case.si_fields.shipper.source is not None
+    assert case.si_fields.shipper.source.page == 1
+    assert case.si_fields.shipper.source.locator is None
+
+
+def test_pdf_locator_is_null_without_reliable_source_regions() -> None:
+    filename = "attachments/email_pdf_SI.pdf"
+    document = read_document(filename, PDF_CONTENT)
+
+    fields = extract_shipping_fields(
+        document.text,
+        source_filename=filename,
+        source_pages=document.pages,
+    )
+
+    assert fields.shipper is not None
+    assert fields.shipper.source is not None
+    assert fields.shipper.source.page == 1
+    assert fields.shipper.source.locator is None
 
 
 async def test_processor_marks_scanned_or_unreadable_pdf_for_review() -> None:

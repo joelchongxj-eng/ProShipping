@@ -3,6 +3,8 @@ import pytest
 from app.models import (
     DocxSourceLocator,
     ExtractedField,
+    PdfBoundingBox,
+    PdfSourceLocator,
     SourceLocation,
     TxtSourceLocator,
     XlsxSourceLocator,
@@ -115,6 +117,25 @@ def test_source_location_accepts_optional_docx_locator() -> None:
         "cell_index": 1,
         "start_char": 0,
         "end_char": 17,
+    }
+
+
+def test_source_location_accepts_optional_pdf_locator() -> None:
+    source = SourceLocation(
+        filename="attachments/email_001_BL.pdf",
+        page=2,
+        evidence_text="Gross Weight (KG): 21,577 KG",
+        locator=PdfSourceLocator(
+            kind="pdf",
+            page=2,
+            bbox=PdfBoundingBox(x0=220.0, y0=60.0, x1=269.0, y1=75.0),
+        ),
+    )
+
+    assert source.model_dump()["locator"] == {
+        "kind": "pdf",
+        "page": 2,
+        "bbox": {"x0": 220.0, "y0": 60.0, "x1": 269.0, "y1": 75.0},
     }
 
 

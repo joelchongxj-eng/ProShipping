@@ -72,8 +72,21 @@ class DocxSourceLocator(BaseModel):
     end_char: int | None = Field(default=None, ge=0)
 
 
+class PdfBoundingBox(BaseModel):
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+
+class PdfSourceLocator(BaseModel):
+    kind: Literal["pdf"] = "pdf"
+    page: int = Field(ge=1)
+    bbox: PdfBoundingBox
+
+
 SourceLocator = Annotated[
-    TxtSourceLocator | XlsxSourceLocator | DocxSourceLocator,
+    TxtSourceLocator | XlsxSourceLocator | DocxSourceLocator | PdfSourceLocator,
     Field(discriminator="kind"),
 ]
 
