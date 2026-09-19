@@ -98,6 +98,24 @@ def test_extracts_gross_weight_from_supported_labels(label: str) -> None:
 @pytest.mark.parametrize(
     "label",
     (
+        "TOTAL Gross Weight (KG)",
+        "TOTAL Gross Wt (kgs)",
+        "TOTAL GROSS WEIGHT",
+        "TOTAL Gross WeightII(KGS)",
+    ),
+)
+def test_extracts_gross_weight_from_observed_total_prefixed_labels(label: str) -> None:
+    fields = extract_shipping_fields(f"{label}: 131,322 KG")
+
+    assert fields.gross_weight_kg is not None
+    assert fields.gross_weight_kg.raw_value == "131,322 KG"
+    assert fields.gross_weight_kg.normalized_value == "131322"
+    assert fields.gross_weight_kg.unit == "kg"
+
+
+@pytest.mark.parametrize(
+    "label",
+    (
         "Shipper",
         "Shipper/Exporter",
         "Shipper (Principal or Seller)",

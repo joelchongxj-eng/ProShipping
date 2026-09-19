@@ -44,6 +44,10 @@ FIELD_PATTERNS: dict[str, tuple[str, ...]] = {
         r"gross weight毛重\(kgs\)",
         r"gross wt(?: \(kgs\))?",
         r"g\.w\.",
+        r"total gross weight \(kg\)",
+        r"total gross wt \(kgs\)",
+        r"total gross weight",
+        r"total gross weightii\(kgs\)",
     ),
 }
 
