@@ -1,12 +1,41 @@
 import json
+from io import BytesIO
 
 import httpx
+import pytest
+from pypdf import PdfWriter
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from app.models import CaseStatus, EmailCategory, EmailRecord, ReviewReason
+from app.services.ai_models import Classification
 from app.services.ai_service import AIService
 from app.services.processor import CaseProcessor
 
 from tests.test_extractor import BL_TEXT, SI_TEXT
+
+
+def pdf_with_text(text: str) -> bytes:
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=300, height=300)
+    page[NameObject("/Resources")] = DictionaryObject({
+        NameObject("/Font"): DictionaryObject({
+            NameObject("/F1"): DictionaryObject({
+                NameObject("/Type"): NameObject("/Font"),
+                NameObject("/Subtype"): NameObject("/Type1"),
+                NameObject("/BaseFont"): NameObject("/Helvetica"),
+            })
+        })
+    })
+    stream = DecodedStreamObject()
+    stream.set_data(f"BT /F1 12 Tf 20 270 Td ({text}) Tj ET".encode())
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    output = BytesIO()
+    writer.write(output)
+    return output.getvalue()
+
+
+def groq_reply(payload: dict) -> httpx.Response:
+    return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(payload)}}]})
 
 
 class FakeInbox:
@@ -44,7 +73,7 @@ async def test_ai_detects_wrong_document_even_when_filename_says_bl() -> None:
     ])
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": json.dumps(next(replies))}]}}]})
+        return groq_reply(next(replies))
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     case = await CaseProcessor(FakeInbox(), ai_service=AIService("test-key", client=client)).process_email(FakeInbox().email)
@@ -55,7 +84,7 @@ async def test_ai_detects_wrong_document_even_when_filename_says_bl() -> None:
 
 async def test_uncertain_ai_classification_never_auto_clears() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": json.dumps({"category": "GENERAL", "reason": "Ambiguous request", "uncertain": True})}]}}]})
+        return groq_reply({"category": "GENERAL", "reason": "Ambiguous request", "uncertain": True})
 
     inbox = FakeInbox()
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
@@ -109,11 +138,59 @@ async def test_ai_extraction_reaches_comparison_and_flags_container_difference()
             return text.encode()
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": json.dumps(next(replies))}]}}]})
+        return groq_reply(next(replies))
 
     inbox = DifferentCountInbox()
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     case = await CaseProcessor(inbox, ai_service=AIService("test-key", client=client)).process_email(inbox.email)
     assert case.status is CaseStatus.MISMATCH
     assert [field.field for field in case.comparison if field.status.value == "mismatch"] == ["container_count"]
+
+
+async def test_ai_extracts_text_pdf_pair_and_reports_container_mismatch() -> None:
+    replies = iter([
+        {"category": "BL_COMPARISON", "reason": "Compare files", "uncertain": False},
+        {"document_type": "SI", "fields": {"container_count": {"raw_value": "1 x 40HC", "evidence": "Container Count: 1 x 40HC"}}},
+        {"document_type": "BL", "fields": {"container_count": {"raw_value": "2 x 40HC", "evidence": "Container Count: 2 x 40HC"}}},
+    ])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return groq_reply(next(replies))
+
+    class PdfInbox(FakeInbox):
+        def __init__(self) -> None:
+            super().__init__()
+            self.email.attachments = [path.replace(".txt", ".pdf") for path in self.email.attachments]
+
+        async def get_attachment(self, path: str) -> bytes:
+            count = "1" if "_SI." in path else "2"
+            return pdf_with_text(f"Container Count: {count} x 40HC")
+
+    inbox = PdfInbox()
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    case = await CaseProcessor(inbox, ai_service=AIService("test-key", client=client)).process_email(inbox.email)
+    assert case.status is CaseStatus.MISMATCH
+    assert [field.field for field in case.comparison if field.status.value == "mismatch"] == ["container_count"]
+
+
+async def test_ai_sends_pdf_without_extractable_text_to_review() -> None:
+    class BlankPdfInbox(FakeInbox):
+        def __init__(self) -> None:
+            super().__init__()
+            self.email.attachments = [path.replace(".txt", ".pdf") for path in self.email.attachments]
+
+        async def get_attachment(self, path: str) -> bytes:
+            return pdf_with_text("")
+
+    class FakeAI:
+        async def classify(self, email):
+            return Classification(category=EmailCategory.BL_COMPARISON, reason="Compare", uncertain=False)
+
+        async def extract_text(self, text, filename):
+            pytest.fail("Empty PDF must not be sent to AI")
+
+    inbox = BlankPdfInbox()
+    case = await CaseProcessor(inbox, ai_service=FakeAI()).process_email(inbox.email)
+    assert case.status is CaseStatus.NEEDS_REVIEW
+    assert case.review_reason is ReviewReason.UNREADABLE
 

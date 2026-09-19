@@ -3,6 +3,7 @@ import re
 from pathlib import PurePosixPath
 
 import httpx
+from pypdf.errors import PdfReadError
 
 from app.clients.inbox import InboxProtocol
 from app.models import (
@@ -14,9 +15,10 @@ from app.models import (
     ReviewReason,
 )
 from app.services.ai_models import DocumentType
-from app.services.ai_service import AIResponseError, AIService, GeminiRequestError
+from app.services.ai_service import AIResponseError, AIService, GroqRequestError
 from app.services.classifier import classify_email
 from app.services.comparison import compare_documents
+from app.services.document_text import attachment_text
 from app.services.text_extractor import extract_shipping_fields
 
 
@@ -43,7 +45,7 @@ class CaseProcessor:
             if self.ai_service:
                 try:
                     classification = await self.ai_service.classify(email)
-                except (AIResponseError, GeminiRequestError, httpx.HTTPError):
+                except (AIResponseError, GroqRequestError, httpx.HTTPError):
                     return CaseRecord(email=email, category=classify_email(email), status=CaseStatus.FAILED)
                 category = classification.category
                 if classification.uncertain:
@@ -64,7 +66,8 @@ class CaseProcessor:
                     bl_attachment=bl_path,
                     review_reason=ReviewReason.MISSING_ATTACHMENT,
                 )
-            if not si_path.casefold().endswith(".txt") or not bl_path.casefold().endswith(".txt"):
+            allowed = {".txt", ".pdf"} if self.ai_service else {".txt"}
+            if PurePosixPath(si_path).suffix.casefold() not in allowed or PurePosixPath(bl_path).suffix.casefold() not in allowed:
                 return CaseRecord(
                     email=email,
                     category=category,
@@ -79,10 +82,12 @@ class CaseProcessor:
                     self.inbox.get_attachment(si_path),
                     self.inbox.get_attachment(bl_path),
                 )
+                si_text = attachment_text(si_text, si_path)
+                bl_text = attachment_text(bl_text, bl_path)
                 if self.ai_service:
                     si_doc, bl_doc = await asyncio.gather(
-                        self.ai_service.extract_text(si_text.decode("utf-8-sig"), si_path),
-                        self.ai_service.extract_text(bl_text.decode("utf-8-sig"), bl_path),
+                        self.ai_service.extract_text(si_text, si_path),
+                        self.ai_service.extract_text(bl_text, bl_path),
                     )
                     if si_doc.document_type is not DocumentType.SI or bl_doc.document_type is not DocumentType.BL:
                         return CaseRecord(
@@ -95,9 +100,9 @@ class CaseProcessor:
                         )
                     si_fields, bl_fields = si_doc.fields, bl_doc.fields
                 else:
-                    si_fields = extract_shipping_fields(si_text.decode("utf-8-sig"))
-                    bl_fields = extract_shipping_fields(bl_text.decode("utf-8-sig"))
-            except (UnicodeDecodeError, OSError):
+                    si_fields = extract_shipping_fields(si_text)
+                    bl_fields = extract_shipping_fields(bl_text)
+            except (UnicodeDecodeError, OSError, PdfReadError):
                 return CaseRecord(
                     email=email,
                     category=category,
@@ -106,7 +111,7 @@ class CaseProcessor:
                     bl_attachment=bl_path,
                     review_reason=ReviewReason.UNREADABLE,
                 )
-            except (AIResponseError, GeminiRequestError, httpx.HTTPError):
+            except (AIResponseError, GroqRequestError, httpx.HTTPError):
                 return CaseRecord(
                     email=email,
                     category=category,

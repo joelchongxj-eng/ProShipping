@@ -24,5 +24,14 @@ On 2026-09-19, the team ran the optional Gemini 3.8 Flash TXT extraction on thre
 | `email_091` | Container count differs: SI 3, BL 2 | `MISMATCH`; only `container_count` differs |
 | `email_031` | Container count differs: SI 1, BL 3; gross weight differs: SI 21,114 KG, BL 23,114 KG | `MISMATCH`; both fields differ |
 
-These are three selected TXT examples, not an accuracy estimate for the 520-email dataset. PDF, DOCX, XLSX, and scanned attachments were not tested through this AI path.
+These are three selected TXT examples, not an accuracy estimate for the 520-email dataset. PDF, DOCX, XLSX, and scanned attachments were not tested through the Gemini path.
+
+After switching the optional AI mode to Groq `openai/gpt-oss-20b`, the team checked two more real pairs:
+
+| Pair | Hand-checked expectation | Groq result |
+| --- | --- | --- |
+| `email_059` (text PDF) | All seven fields match | `MATCH`; all seven fields match |
+| `email_091` (TXT) | Container count differs: SI 3, BL 2 | `MISMATCH`; only `container_count` differs |
+
+These are smoke checks, not a full-dataset accuracy measurement. Scanned and corrupt PDFs remain unreadable; DOCX and XLSX are not supported by the AI path yet.
 

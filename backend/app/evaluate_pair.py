@@ -1,4 +1,4 @@
-"""Run Gemini extraction and comparison for one local SI/BL text pair."""
+"""Run AI extraction and comparison for one local SI/BL pair."""
 
 import argparse
 import asyncio
@@ -7,11 +7,12 @@ from pathlib import Path
 from app.services.ai_models import DocumentType
 from app.services.ai_service import AIService
 from app.services.comparison import compare_documents
+from app.services.document_text import attachment_text
 
 
 async def evaluate_pair(si_path: Path, bl_path: Path, service: AIService) -> str:
-    si_text = si_path.read_text(encoding="utf-8-sig")
-    bl_text = bl_path.read_text(encoding="utf-8-sig")
+    si_text = attachment_text(si_path.read_bytes(), si_path.name)
+    bl_text = attachment_text(bl_path.read_bytes(), bl_path.name)
     si = await service.extract_text(si_text, si_path.name)
     bl = await service.extract_text(bl_text, bl_path.name)
     if si.document_type is not DocumentType.SI or bl.document_type is not DocumentType.BL:
@@ -27,9 +28,9 @@ async def evaluate_pair(si_path: Path, bl_path: Path, service: AIService) -> str
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Compare one local SI/BL TXT pair with Gemini")
-    parser.add_argument("si", type=Path, help="Path to the SI text file")
-    parser.add_argument("bl", type=Path, help="Path to the draft BL text file")
+    parser = argparse.ArgumentParser(description="Compare one local SI/BL TXT or PDF pair with Groq")
+    parser.add_argument("si", type=Path, help="Path to the SI file")
+    parser.add_argument("bl", type=Path, help="Path to the draft BL file")
     args = parser.parse_args()
     print(asyncio.run(evaluate_pair(args.si, args.bl, AIService())))
 

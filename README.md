@@ -14,39 +14,44 @@ ProShipping verifies Shipping Instructions (SI) against Draft Bills of Lading (B
 - Complete 520-entry submission export
 - Test suite and first Docker self-evaluation
 
-PDF, DOCX, XLSX, scanned-document AI extraction, review actions, escalation, and persistence are scheduled for the next milestones.
+DOCX, XLSX, scanned-document AI extraction, review actions, escalation, and persistence are scheduled for the next milestones.
 
 ## Optional Day 1 AI mode
 
-The `data` branch includes an optional Gemini path for email classification and
-TXT SI/BL field extraction. The default deterministic path remains available.
+The `data` branch includes an optional Groq path for email classification and
+TXT or text-based PDF SI/BL field extraction. Scanned or corrupt PDFs go to
+review. The default deterministic TXT path remains available.
 Set these environment variables before starting the backend to enable AI:
 
 ```powershell
 $env:AI_ENABLED = "1"
-$env:GEMINI_API_KEY = Read-Host "Gemini API key" -MaskInput
-$env:GEMINI_MODEL = "gemini-3.8-flash"
+$env:GROQ_API_KEY = Read-Host "Groq API key" -MaskInput
+$env:GROQ_MODEL = "openai/gpt-oss-20b"
 ```
 
-Keep the API key out of Git. AI mode calls Gemini for every email and each TXT
-comparison attachment, so processing the full dataset can incur API usage.
-The AI response is validated against the backend field schema and each cited
-text excerpt is checked against the source. Missing fields and wrong document
+Keep the API key out of Git. AI mode calls Groq for every email and each supported
+comparison attachment, so processing the full dataset consumes free-tier requests
+and tokens. Groq returns HTTP 429 when a rate limit is reached; check your account's
+current limits before running the full inbox.
+Groq is asked for a strict JSON schema; if it rejects JSON generation, the request
+is retried once without a response format. The AI response is validated against the
+backend field schema, and each cited text excerpt is checked against the source.
+Missing fields and wrong document
 types go to review; AI request failures are marked `FAILED`. The `0.85`
 confidence value means the evidence check passed; it is not a measured model
-probability. Three hand-checked TXT pairs passed live Gemini smoke checks (see
-`docs/day-1-baseline.md`), but full-dataset AI accuracy has not been measured.
+probability. Selected TXT and text-PDF pairs passed live smoke checks with Groq
+(see `docs/day-1-baseline.md`), but full-dataset AI accuracy has not been measured.
 The automated tests use synthetic model responses.
 
-To check one real TXT pair before processing the whole inbox, run this from
-`backend` in the same PowerShell session where `GEMINI_API_KEY` is set:
+To check one real TXT or text-based PDF pair before processing the whole inbox, run this from
+`backend` in the same PowerShell session where `GROQ_API_KEY` is set:
 
 ```powershell
-& .\.venv\Scripts\python.exe -m app.evaluate_pair "<path-to-SI.txt>" "<path-to-BL.txt>"
+& .\.venv\Scripts\python.exe -m app.evaluate_pair "<path-to-SI.txt-or.pdf>" "<path-to-BL.txt-or.pdf>"
 ```
 
 The command prints the detected document types, seven field comparisons, and
-overall status. It sends the two document texts to Gemini; it does not write
+overall status. It sends the two document texts to Groq; it does not write
 the API key or a submission file.
 
 ## Run locally
