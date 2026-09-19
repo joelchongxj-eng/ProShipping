@@ -1,53 +1,52 @@
-/** Provisional frontend contract; confirm with Person B before API integration.
- * Statuses and comparison reasons are supplied by the backend, never calculated here.
+import type { EmailCategory } from "./inbox";
+
+/** Wire schema from origin/backend:backend/app/models.py (8733db5).
+ * Backend decisions are authoritative; these types do not calculate results.
  */
-export type CaseStatus = "matched" | "mismatch" | "needs_review" | "failed";
+export type CaseStatus = "MATCH" | "MISMATCH" | "NEEDS_REVIEW" | "FAILED";
+export type FieldStatus = "match" | "mismatch" | "needs_review" | "missing";
+export type ReviewReason = "wrong_doc_type" | "missing_attachment" | "unreadable" | "missing_value";
+export type ShippingField = "shipper" | "consignee" | "notify_party" | "port_of_loading" | "port_of_discharge" | "container_count" | "gross_weight_kg";
 
-export type FieldStatus = "match" | "mismatch" | "uncertain" | "missing";
-
-export type ShippingField =
-  | "shipper"
-  | "consignee"
-  | "notify_party"
-  | "port_of_loading"
-  | "port_of_discharge"
-  | "container_count"
-  | "gross_weight_kg";
-
-export interface Evidence {
-  source_text: string;
-  /** One-based document page, or null for unpaginated/unavailable sources. */
-  page_number: number | null;
+export interface EmailRecord {
+  email_id: string;
+  /** FastAPI serializes the sender field using its Pydantic alias. */
+  from: string;
+  subject: string;
+  body: string;
+  attachments: string[];
 }
 
-export interface ExtractedValue {
-  raw_value: string | null;
-  /** Text for names/ports; numbers for container count and weight in kilograms. */
-  normalized_value: string | number | null;
-  /** Extraction certainty from 0 to 1, NOT match probability; null if unavailable. */
-  confidence: number | null;
-  /** Null when no source evidence is available. */
-  evidence: Evidence | null;
+export interface ExtractedField {
+  field: string;
+  raw_value: string;
+  normalized_value: string;
+  unit?: string | null;
+  /** Extraction certainty, not match probability. */
+  confidence: number;
+  page?: number | null;
+  evidence: string;
 }
 
 export interface FieldComparison {
-  si: ExtractedValue;
-  bl: ExtractedValue;
+  field: string;
   status: FieldStatus;
-  comparison_reason: string;
+  si: ExtractedField | null;
+  bl: ExtractedField | null;
+  reason: string;
 }
 
-export interface CaseSummary {
-  case_id: string;
-  email_id: string;
-  subject: string;
-  sender: string;
-  /** ISO 8601 timestamp with timezone. */
-  received_at: string;
+export type ShippingFields = Partial<Record<ShippingField, ExtractedField | null>>;
+
+export interface VerificationCase {
+  email: EmailRecord;
+  /** The inspected backend puts category on CaseRecord, not EmailRecord. */
+  category: EmailCategory;
   status: CaseStatus;
-}
-
-export interface VerificationCase extends CaseSummary {
-  /** Exactly the seven shipping fields; a missing extraction still has an entry. */
-  field_comparisons: Record<ShippingField, FieldComparison>;
+  si_attachment?: string | null;
+  bl_attachment?: string | null;
+  si_fields?: ShippingFields | null;
+  bl_fields?: ShippingFields | null;
+  comparison: FieldComparison[];
+  review_reason?: ReviewReason | null;
 }

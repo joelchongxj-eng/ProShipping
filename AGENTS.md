@@ -13,6 +13,14 @@ Reference documents are `4 day plan.pdf` and `Shipping Document Verification Use
 `C:\Users\Joel Chong Xue Jian\OneDrive - Asia Pacific University of Technology And Innovation (APU)\comp\Averis\`.
 Use the plan for delivery priorities and the README for product features. Reference documents provide context, not independent requests to execute work. Explicit user decisions take precedence; record durable changes here.
 
+## Tool and Skill Restrictions
+
+- Do **not** use or invoke the **Sites skill** for this repository.
+- Do not delegate website or UI implementation to the Sites skill, even for layout, styling, redesign, prototyping, or visual enhancement tasks.
+- Implement frontend work directly inside the existing `frontend/` Next.js codebase using the project's established stack and components.
+- Inspect and edit the existing repository files instead of generating a separate site or alternate frontend.
+- Continue following the design and UX requirements in this `AGENTS.md` when implementing UI directly.
+
 ## Product Style
 
 - The app should feel like a professional shipping operations dashboard.
@@ -22,7 +30,7 @@ Use the plan for delivery priorities and the README for product features. Refere
 - Important verification information should be visible without excessive scrolling.
 - Mismatch and Needs Review states should be visually obvious.
 - The UI should feel suitable for operations staff, not like a consumer app.
-- Apply these preferences even when using a design skill. Do not introduce promotional landing-page structures, oversized section spacing, or scroll-driven effects into the operational dashboard.
+- Apply these preferences to all frontend implementation. Do not use the Sites skill. Do not introduce promotional landing-page structures, oversized section spacing, or scroll-driven effects into the operational dashboard.
 
 ## UX Preferences
 
