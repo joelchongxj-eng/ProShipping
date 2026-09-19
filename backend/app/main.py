@@ -1,15 +1,24 @@
 import os
 from pathlib import PurePosixPath, PureWindowsPath
-from urllib.parse import quote
+from typing import Annotated
+from urllib.parse import quote, unquote
+from uuid import uuid4
 
 import httpx
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.clients.inbox import InboxClient
-from app.models import CaseRecord, FieldStatus
+from app.models import (
+    CaseRecord,
+    FieldStatus,
+    UploadComparisonResponse,
+    UploadedFileReference,
+)
+from app.services.document_pair import compare_document_pair
 from app.services.processor import CaseProcessor
 from app.services.submission import build_submission_entry
+from app.services.upload_store import UploadComparisonStore
 
 
 app = FastAPI(title="ProShipping API", version="0.1.0")
@@ -24,6 +33,11 @@ app.add_middleware(
 inbox = InboxClient(os.getenv("INBOX_BASE_URL", "http://localhost:8080"))
 processor = CaseProcessor(inbox)
 cases: dict[str, CaseRecord] = {}
+upload_store = UploadComparisonStore(
+    ttl_seconds=int(os.getenv("UPLOAD_TTL_SECONDS", "3600")),
+    max_upload_bytes=int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024))),
+)
+app.router.add_event_handler("shutdown", upload_store.close)
 
 ATTACHMENT_MEDIA_TYPES = {
     ".pdf": "application/pdf",
@@ -32,6 +46,7 @@ ATTACHMENT_MEDIA_TYPES = {
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
 INLINE_ATTACHMENT_TYPES = {".pdf", ".txt"}
+UPLOAD_CHUNK_BYTES = 1024 * 1024
 
 
 def _is_safe_attachment_path(filename: str) -> bool:
@@ -54,9 +69,154 @@ def _content_disposition(filename: str, disposition: str) -> str:
     return f'{disposition}; filename="{basename}"'
 
 
+def _safe_upload_name(filename: str | None, role: str) -> tuple[str, str]:
+    candidate = unquote(filename or "").replace("\\", "/")
+    basename = PurePosixPath(candidate).name
+    basename = "".join(
+        character
+        if character not in {'"', "\r", "\n"} and ord(character) >= 32
+        else "_"
+        for character in basename
+    )
+    extension = PurePosixPath(basename).suffix.casefold()
+    if extension not in ATTACHMENT_MEDIA_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported {role.upper()} file type.",
+        )
+    if not basename or basename in {".", ".."}:
+        basename = f"{role}{extension}"
+    return basename, extension
+
+
+async def _read_upload(upload: UploadFile, role: str) -> tuple[str, str, bytes]:
+    filename, extension = _safe_upload_name(upload.filename, role)
+    chunks: list[bytes] = []
+    total = 0
+    try:
+        while chunk := await upload.read(UPLOAD_CHUNK_BYTES):
+            total += len(chunk)
+            if total > upload_store.max_upload_bytes:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"{role.upper()} file exceeds the upload size limit.",
+                )
+            chunks.append(chunk)
+    finally:
+        await upload.close()
+    content = b"".join(chunks)
+    if not content:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{role.upper()} file is empty.",
+        )
+    return filename, extension, content
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "service": "proshipping-backend"}
+
+
+@app.post("/api/compare-upload", response_model=UploadComparisonResponse)
+async def compare_upload(
+    si_file: Annotated[list[UploadFile] | None, File()] = None,
+    bl_file: Annotated[list[UploadFile] | None, File()] = None,
+) -> UploadComparisonResponse:
+    if si_file is None or len(si_file) != 1:
+        raise HTTPException(status_code=400, detail="Exactly one SI file is required.")
+    if bl_file is None or len(bl_file) != 1:
+        raise HTTPException(status_code=400, detail="Exactly one BL file is required.")
+
+    si_filename, si_extension, si_content = await _read_upload(si_file[0], "si")
+    bl_filename, bl_extension, bl_content = await _read_upload(bl_file[0], "bl")
+    comparison_id = str(uuid4())
+    si_source_filename = f"uploads/{comparison_id}/si/{si_filename}"
+    bl_source_filename = f"uploads/{comparison_id}/bl/{bl_filename}"
+    result = compare_document_pair(
+        si_source_filename,
+        si_content,
+        bl_source_filename,
+        bl_content,
+    )
+    si_attachment_url = (
+        f"/api/upload-comparisons/{comparison_id}/attachments/si"
+    )
+    bl_attachment_url = (
+        f"/api/upload-comparisons/{comparison_id}/attachments/bl"
+    )
+    response = UploadComparisonResponse(
+        comparison_id=comparison_id,
+        status=result.status,
+        review_reason=result.review_reason,
+        si_file=UploadedFileReference(
+            filename=si_filename,
+            source_filename=si_source_filename,
+            attachment_url=si_attachment_url,
+        ),
+        bl_file=UploadedFileReference(
+            filename=bl_filename,
+            source_filename=bl_source_filename,
+            attachment_url=bl_attachment_url,
+        ),
+        si_fields=result.si_fields,
+        bl_fields=result.bl_fields,
+        comparison=result.comparison,
+    )
+    upload_store.put(
+        comparison_id,
+        response,
+        si_filename=si_filename,
+        si_extension=si_extension,
+        si_content=si_content,
+        bl_filename=bl_filename,
+        bl_extension=bl_extension,
+        bl_content=bl_content,
+    )
+    return response
+
+
+@app.get(
+    "/api/upload-comparisons/{comparison_id}",
+    response_model=UploadComparisonResponse,
+)
+async def get_upload_comparison(comparison_id: str) -> UploadComparisonResponse:
+    session = upload_store.get(comparison_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Upload comparison not found.")
+    return session.response
+
+
+@app.get("/api/upload-comparisons/{comparison_id}/attachments/{role}")
+async def get_upload_attachment(
+    comparison_id: str,
+    role: str,
+) -> Response:
+    session = upload_store.get(comparison_id)
+    if session is None or role not in {"si", "bl"}:
+        raise HTTPException(status_code=404, detail="Uploaded attachment not found.")
+    stored = session.attachments.get(role)
+    if stored is None:
+        raise HTTPException(status_code=404, detail="Uploaded attachment not found.")
+    try:
+        content = stored.path.read_bytes()
+    except OSError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="Uploaded attachment not found.",
+        ) from exc
+    suffix = PurePosixPath(stored.filename).suffix.casefold()
+    disposition = "inline" if suffix in INLINE_ATTACHMENT_TYPES else "attachment"
+    return Response(
+        content=content,
+        media_type=ATTACHMENT_MEDIA_TYPES.get(suffix, "application/octet-stream"),
+        headers={
+            "Content-Disposition": _content_disposition(
+                stored.filename,
+                disposition,
+            ),
+        },
+    )
 
 
 @app.post("/api/process-all")

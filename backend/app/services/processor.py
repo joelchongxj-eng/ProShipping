@@ -8,24 +8,10 @@ from app.models import (
     CaseStatus,
     EmailCategory,
     EmailRecord,
-    FieldStatus,
     ReviewReason,
 )
 from app.services.classifier import classify_email
-from app.services.comparison import compare_documents
-from app.services.document_reader import DocumentReadError, read_document
-from app.services.text_extractor import extract_shipping_fields
-
-
-WRONG_DOCUMENT_TITLES = {
-    "commercial invoice",
-    "packing list",
-    "certificate of origin",
-}
-WRONG_DOCUMENT_DISCLAIMERS = (
-    "not an si or bl",
-    "packing list only",
-)
+from app.services.document_pair import compare_document_pair
 
 
 def _find_attachment(attachments: list[str], token: str) -> str | None:
@@ -34,14 +20,6 @@ def _find_attachment(attachments: list[str], token: str) -> str | None:
         if re.search(rf"(?:^|[_\-\s]){token}(?:$|[_\-\s])", stem, flags=re.IGNORECASE):
             return path
     return None
-
-
-def _is_wrong_document_type(text: str) -> bool:
-    lines = [line.strip().casefold() for line in text.splitlines() if line.strip()]
-    if lines and lines[0] in WRONG_DOCUMENT_TITLES:
-        return True
-    combined = "\n".join(lines)
-    return any(marker in combined for marker in WRONG_DOCUMENT_DISCLAIMERS)
 
 
 class CaseProcessor:
@@ -70,56 +48,24 @@ class CaseProcessor:
                     bl_attachment=bl_path,
                     review_reason=ReviewReason.MISSING_ATTACHMENT,
                 )
-            try:
-                si_content, bl_content = await asyncio.gather(
-                    self.inbox.get_attachment(si_path),
-                    self.inbox.get_attachment(bl_path),
-                )
-                si_document = read_document(si_path, si_content)
-                bl_document = read_document(bl_path, bl_content)
-                if _is_wrong_document_type(si_document.text) or _is_wrong_document_type(bl_document.text):
-                    return CaseRecord(
-                        email=email,
-                        category=category,
-                        status=CaseStatus.NEEDS_REVIEW,
-                        si_attachment=si_path,
-                        bl_attachment=bl_path,
-                        review_reason=ReviewReason.WRONG_DOC_TYPE,
-                    )
-                si_fields = extract_shipping_fields(
-                    si_document.text,
-                    source_filename=si_path,
-                    source_pages=si_document.pages,
-                    source_lines=si_document.source_lines,
-                )
-                bl_fields = extract_shipping_fields(
-                    bl_document.text,
-                    source_filename=bl_path,
-                    source_pages=bl_document.pages,
-                    source_lines=bl_document.source_lines,
-                )
-            except (DocumentReadError, UnicodeDecodeError, OSError):
-                return CaseRecord(
-                    email=email,
-                    category=category,
-                    status=CaseStatus.NEEDS_REVIEW,
-                    si_attachment=si_path,
-                    bl_attachment=bl_path,
-                    review_reason=ReviewReason.UNREADABLE,
-                )
-
-            result = compare_documents(si_fields, bl_fields)
-            review_reason = None
-            if any(item.status is FieldStatus.MISSING for item in result.fields):
-                review_reason = ReviewReason.MISSING_VALUE
+            si_content, bl_content = await asyncio.gather(
+                self.inbox.get_attachment(si_path),
+                self.inbox.get_attachment(bl_path),
+            )
+            result = compare_document_pair(
+                si_path,
+                si_content,
+                bl_path,
+                bl_content,
+            )
             return CaseRecord(
                 email=email,
                 category=category,
                 status=result.status,
                 si_attachment=si_path,
                 bl_attachment=bl_path,
-                si_fields=si_fields,
-                bl_fields=bl_fields,
-                comparison=result.fields,
-                review_reason=review_reason,
+                si_fields=result.si_fields,
+                bl_fields=result.bl_fields,
+                comparison=result.comparison,
+                review_reason=result.review_reason,
             )

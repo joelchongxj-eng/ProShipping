@@ -132,6 +132,31 @@ class ComparisonResult(BaseModel):
     fields: list[FieldComparison]
 
 
+class DocumentPairResult(BaseModel):
+    status: CaseStatus
+    si_fields: ShippingFields | None = None
+    bl_fields: ShippingFields | None = None
+    comparison: list[FieldComparison] = Field(default_factory=list)
+    review_reason: ReviewReason | None = None
+
+
+class UploadedFileReference(BaseModel):
+    filename: str
+    source_filename: str
+    attachment_url: str
+
+
+class UploadComparisonResponse(BaseModel):
+    comparison_id: str
+    status: CaseStatus
+    review_reason: ReviewReason | None = None
+    si_file: UploadedFileReference
+    bl_file: UploadedFileReference
+    si_fields: ShippingFields | None = None
+    bl_fields: ShippingFields | None = None
+    comparison: list[FieldComparison] = Field(default_factory=list)
+
+
 class CaseRecord(BaseModel):
     email: EmailRecord
     category: EmailCategory
