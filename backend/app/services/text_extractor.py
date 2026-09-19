@@ -10,7 +10,11 @@ from app.services.normalization import (
 
 
 FIELD_PATTERNS: dict[str, tuple[str, ...]] = {
-    "shipper": (r"shipper(?:/exporter)?",),
+    "shipper": (
+        r"shipper(?:/exporter)?",
+        r"shipper \(principal or seller\)",
+        r"exporter",
+    ),
     "consignee": (r"consignee",),
     "notify_party": (r"notify party", r"notify"),
     "port_of_loading": (r"port of loading(?: \(pol\))?", r"load port", r"pol"),
