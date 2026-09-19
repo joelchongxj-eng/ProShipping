@@ -17,6 +17,8 @@ FIELD_PATTERNS: dict[str, tuple[str, ...]] = {
     "port_of_discharge": (r"port of discharge", r"discharge port", r"pod"),
     "container_count": (
         r"no\. of containers or packages",
+        r"no\. of containers",
+        r"total containers",
         r"container count",
         r"containers?",
     ),
@@ -62,4 +64,3 @@ def extract_shipping_fields(text: str) -> ShippingFields:
         found = _find_line_value(text, patterns)
         extracted[name] = _build_field(name, *found) if found else None
     return ShippingFields(**extracted)
-

@@ -1,3 +1,5 @@
+import pytest
+
 from app.services.text_extractor import extract_shipping_fields
 
 
@@ -35,3 +37,23 @@ def test_extracts_seven_fields_from_si_and_bl_text() -> None:
         assert fields.container_count.normalized_value == "1"
         assert fields.gross_weight_kg.normalized_value == "21577"
 
+
+@pytest.mark.parametrize(
+    ("label", "value", "expected"),
+    (
+        ("No. of Containers", "3", "3"),
+        ("No. of Containers", "3 x 40'HC", "3"),
+        ("Total Containers", "6 x 20'GP", "6"),
+        ("No. of Containers or Packages", "2 x 40'HC", "2"),
+        ("Container Count", "4 x 20'GP", "4"),
+        ("Containers", "5 x 40'HC", "5"),
+    ),
+)
+def test_extracts_container_count_from_supported_labels(
+    label: str, value: str, expected: str
+) -> None:
+    fields = extract_shipping_fields(f"{label}: {value}")
+
+    assert fields.container_count is not None
+    assert fields.container_count.raw_value == value
+    assert fields.container_count.normalized_value == expected
