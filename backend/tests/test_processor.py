@@ -6,12 +6,13 @@ import pytest
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
-from app.models import CaseStatus, EmailCategory, EmailRecord, ReviewReason
-from app.services.ai_models import Classification
+from app.models import CaseStatus, EmailCategory, EmailRecord, ReviewReason, ShippingFields
+from app.services.ai_models import Classification, DocumentType, ExtractedDocument
 from app.services.ai_service import AIService
 from app.services.processor import CaseProcessor
 
 from tests.test_extractor import BL_TEXT, SI_TEXT
+from tests.test_document_text import office_file
 
 
 def pdf_with_text(text: str) -> bytes:
@@ -66,6 +67,10 @@ async def test_processor_builds_a_complete_matching_case() -> None:
 
 
 async def test_ai_detects_wrong_document_even_when_filename_says_bl() -> None:
+    class WrongDocumentInbox(FakeInbox):
+        async def get_attachment(self, path: str) -> bytes:
+            return SI_TEXT.encode() if "_SI." in path else b"INVOICE\nAmount: 100"
+
     replies = iter([
         {"category": "BL_COMPARISON", "reason": "Check documents", "uncertain": False},
         {"document_type": "SI", "fields": {}},
@@ -76,7 +81,8 @@ async def test_ai_detects_wrong_document_even_when_filename_says_bl() -> None:
         return groq_reply(next(replies))
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    case = await CaseProcessor(FakeInbox(), ai_service=AIService("test-key", client=client)).process_email(FakeInbox().email)
+    inbox = WrongDocumentInbox()
+    case = await CaseProcessor(inbox, ai_service=AIService("test-key", client=client)).process_email(inbox.email)
     assert case.category is EmailCategory.BL_COMPARISON
     assert case.status is CaseStatus.NEEDS_REVIEW
     assert case.review_reason is ReviewReason.WRONG_DOC_TYPE
@@ -193,4 +199,35 @@ async def test_ai_sends_pdf_without_extractable_text_to_review() -> None:
     case = await CaseProcessor(inbox, ai_service=FakeAI()).process_email(inbox.email)
     assert case.status is CaseStatus.NEEDS_REVIEW
     assert case.review_reason is ReviewReason.UNREADABLE
+
+
+@pytest.mark.parametrize("extension,member,xml", [
+    ("docx", "word/document.xml", "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:p><w:t>Container Count: 2</w:t></w:p></w:document>"),
+    ("xlsx", "xl/worksheets/sheet1.xml", "<worksheet xmlns='http://schemas.openxmlformats.org/spreadsheetml/2006/main'><row><c t='inlineStr'><is><t>Container Count</t></is></c><c><v>2</v></c></row></worksheet>"),
+])
+async def test_ai_processes_office_attachments(extension, member, xml):
+    seen = []
+
+    class OfficeInbox(FakeInbox):
+        def __init__(self):
+            super().__init__()
+            self.email.attachments = [path.replace(".txt", f".{extension}") for path in self.email.attachments]
+
+        async def get_attachment(self, path):
+            return office_file(member, xml)
+
+    class FakeAI:
+        async def classify(self, email):
+            return Classification(category=EmailCategory.BL_COMPARISON, reason="Compare", uncertain=False)
+
+        async def extract_text(self, text, filename):
+            seen.append(text)
+            kind = DocumentType.SI if "_SI." in filename else DocumentType.BL
+            return ExtractedDocument(document_type=kind, fields=ShippingFields())
+
+    inbox = OfficeInbox()
+    case = await CaseProcessor(inbox, ai_service=FakeAI()).process_email(inbox.email)
+    assert len(seen) == 2
+    assert all("Container Count" in text for text in seen)
+    assert case.review_reason is ReviewReason.MISSING_VALUE
 

@@ -97,6 +97,16 @@ def _separate_order_consignee(fields: RawShippingFields, text: str) -> None:
             fields.consignee = RawField(raw_value=consignee.group(1).rstrip(), evidence=consignee.group(0))
 
 
+def _document_type_from_heading(text: str) -> DocumentType | None:
+    for line in text.splitlines()[:5]:
+        heading = line.strip()
+        if re.match(r"^(?:SHIPPING INSTRUCTION|BILL OF LADING INSTRUCTION|B/?L INSTRUCTION)(?::|$)", heading, re.IGNORECASE):
+            return DocumentType.SI
+        if re.match(r"^BILL OF LADING(?: \(DRAFT\))?(?::|$)", heading, re.IGNORECASE):
+            return DocumentType.BL
+    return None
+
+
 class AIService:
     def __init__(self, api_key: str | None = None, *, model: str | None = None, client: httpx.AsyncClient | None = None):
         self.api_key = api_key or os.getenv("GROQ_API_KEY")
@@ -202,7 +212,10 @@ class AIService:
                     converted[name] = _build_field(name, value, field.evidence).model_copy(
                         update={"page": None, "confidence": 0.85}
                     )
-                return ExtractedDocument(document_type=raw.document_type, fields=ShippingFields(**converted))
+                return ExtractedDocument(
+                    document_type=_document_type_from_heading(text) or raw.document_type,
+                    fields=ShippingFields(**converted),
+                )
             except (AIResponseError, ValidationError) as exc:
                 if attempt:
                     raise AIResponseError(f"Model returned invalid fields or evidence after retry: {exc}") from exc

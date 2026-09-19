@@ -28,7 +28,7 @@ async def evaluate_pair(si_path: Path, bl_path: Path, service: AIService) -> str
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Compare one local SI/BL TXT or PDF pair with Groq")
+    parser = argparse.ArgumentParser(description="Compare one local SI/BL TXT, PDF, DOCX, or XLSX pair with Groq")
     parser.add_argument("si", type=Path, help="Path to the SI file")
     parser.add_argument("bl", type=Path, help="Path to the draft BL file")
     args = parser.parse_args()

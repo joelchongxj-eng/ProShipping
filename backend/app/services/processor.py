@@ -18,7 +18,7 @@ from app.services.ai_models import DocumentType
 from app.services.ai_service import AIResponseError, AIService, GroqRequestError
 from app.services.classifier import classify_email
 from app.services.comparison import compare_documents
-from app.services.document_text import attachment_text
+from app.services.document_text import DocumentReadError, attachment_text
 from app.services.text_extractor import extract_shipping_fields
 
 
@@ -66,7 +66,7 @@ class CaseProcessor:
                     bl_attachment=bl_path,
                     review_reason=ReviewReason.MISSING_ATTACHMENT,
                 )
-            allowed = {".txt", ".pdf"} if self.ai_service else {".txt"}
+            allowed = {".txt", ".pdf", ".docx", ".xlsx"} if self.ai_service else {".txt"}
             if PurePosixPath(si_path).suffix.casefold() not in allowed or PurePosixPath(bl_path).suffix.casefold() not in allowed:
                 return CaseRecord(
                     email=email,
@@ -102,7 +102,7 @@ class CaseProcessor:
                 else:
                     si_fields = extract_shipping_fields(si_text)
                     bl_fields = extract_shipping_fields(bl_text)
-            except (UnicodeDecodeError, OSError, PdfReadError):
+            except (UnicodeDecodeError, OSError, PdfReadError, DocumentReadError):
                 return CaseRecord(
                     email=email,
                     category=category,

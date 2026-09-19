@@ -33,5 +33,12 @@ After switching the optional AI mode to Groq `openai/gpt-oss-20b`, the team chec
 | `email_059` (text PDF) | All seven fields match | `MATCH`; all seven fields match |
 | `email_091` (TXT) | Container count differs: SI 3, BL 2 | `MISMATCH`; only `container_count` differs |
 
-These are smoke checks, not a full-dataset accuracy measurement. Scanned and corrupt PDFs remain unreadable; DOCX and XLSX are not supported by the AI path yet.
+These are smoke checks, not a full-dataset accuracy measurement. Scanned and corrupt PDFs remain unreadable. The Office-text reader extracted text from all 8 DOCX and 22 XLSX files in the supplied bundle. Two Office pairs were also checked against their source documents with Groq:
+
+| Pair | Formats | Hand-checked expectation | Groq result |
+| --- | --- | --- | --- |
+| `email_005` | XLSX / XLSX | All seven fields match | `MATCH`; all seven fields match |
+| `email_055` | XLSX / DOCX | All seven fields match | `MATCH`; all seven fields match |
+
+These selected pairs do not establish Office-document accuracy across the whole dataset.
 

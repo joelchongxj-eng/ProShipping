@@ -14,12 +14,12 @@ ProShipping verifies Shipping Instructions (SI) against Draft Bills of Lading (B
 - Complete 520-entry submission export
 - Test suite and first Docker self-evaluation
 
-DOCX, XLSX, scanned-document AI extraction, review actions, escalation, and persistence are scheduled for the next milestones.
+Scanned-document AI extraction, review actions, escalation, and persistence are scheduled for the next milestones.
 
 ## Optional Day 1 AI mode
 
 The `data` branch includes an optional Groq path for email classification and
-TXT or text-based PDF SI/BL field extraction. Scanned or corrupt PDFs go to
+TXT, text-based PDF, DOCX, and XLSX SI/BL field extraction. Scanned or corrupt PDFs go to
 review. The default deterministic TXT path remains available.
 Set these environment variables before starting the backend to enable AI:
 
@@ -43,11 +43,11 @@ probability. Selected TXT and text-PDF pairs passed live smoke checks with Groq
 (see `docs/day-1-baseline.md`), but full-dataset AI accuracy has not been measured.
 The automated tests use synthetic model responses.
 
-To check one real TXT or text-based PDF pair before processing the whole inbox, run this from
+To check one real TXT, text-based PDF, DOCX, or XLSX pair before processing the whole inbox, run this from
 `backend` in the same PowerShell session where `GROQ_API_KEY` is set:
 
 ```powershell
-& .\.venv\Scripts\python.exe -m app.evaluate_pair "<path-to-SI.txt-or.pdf>" "<path-to-BL.txt-or.pdf>"
+& .\.venv\Scripts\python.exe -m app.evaluate_pair "<path-to-SI>" "<path-to-BL>"
 ```
 
 The command prints the detected document types, seven field comparisons, and

@@ -91,6 +91,26 @@ async def test_extracts_flat_groq_fields_when_evidence_is_exact():
 
 
 @pytest.mark.asyncio
+async def test_explicit_bill_of_lading_heading_overrides_wrong_model_type():
+    text = "ASIA PACIFIC PAPERBOARD TRADING\nBILL OF LADING: 3154303911\nContainer Count: 15"
+    client = service_reply([{"document_type": "SI", "fields": {
+        "container_count": {"raw_value": "15", "evidence": "Container Count: 15"},
+    }}])
+    result = await AIService("test-key", client=client).extract_text(text, "email_005_BL.xlsx")
+    assert result.document_type == "BL"
+
+
+@pytest.mark.asyncio
+async def test_bill_of_lading_instruction_heading_is_si():
+    text = "BILL OF LADING INSTRUCTION\nContainer Count: 6"
+    client = service_reply([{"document_type": "BL", "fields": {
+        "container_count": {"raw_value": "6", "evidence": "Container Count: 6"},
+    }}])
+    result = await AIService("test-key", client=client).extract_text(text, "email_059_SI.pdf")
+    assert result.document_type == "SI"
+
+
+@pytest.mark.asyncio
 async def test_separates_notify_party_from_explicit_loading_port_label():
     text = "NOTIFY PARTY\nPACIFIC OFFICE\nPOL\nBUATAN, INDONESIA\nPort of Discharge\nFREMANTLE, AUSTRALIA"
     client = service_reply([{"document_type": "SI", "fields": {
