@@ -110,3 +110,18 @@ def test_extracts_shipper_from_supported_labels(label: str) -> None:
     assert fields.shipper is not None
     assert fields.shipper.raw_value == "ACME SHIPPING LTD"
     assert fields.shipper.normalized_value == "acme shipping ltd"
+
+
+@pytest.mark.parametrize(
+    "label",
+    (
+        "Consignee",
+        "Consignee (Non-Negotiable)",
+    ),
+)
+def test_extracts_consignee_from_supported_labels(label: str) -> None:
+    fields = extract_shipping_fields(f"{label}: ACME IMPORTS LTD")
+
+    assert fields.consignee is not None
+    assert fields.consignee.raw_value == "ACME IMPORTS LTD"
+    assert fields.consignee.normalized_value == "acme imports ltd"
