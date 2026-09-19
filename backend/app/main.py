@@ -1,7 +1,9 @@
 import os
+from pathlib import PurePosixPath, PureWindowsPath
+from urllib.parse import quote
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.clients.inbox import InboxClient
@@ -22,6 +24,34 @@ app.add_middleware(
 inbox = InboxClient(os.getenv("INBOX_BASE_URL", "http://localhost:8080"))
 processor = CaseProcessor(inbox)
 cases: dict[str, CaseRecord] = {}
+
+ATTACHMENT_MEDIA_TYPES = {
+    ".pdf": "application/pdf",
+    ".txt": "text/plain",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+INLINE_ATTACHMENT_TYPES = {".pdf", ".txt"}
+
+
+def _is_safe_attachment_path(filename: str) -> bool:
+    path = PurePosixPath(filename)
+    return (
+        bool(filename)
+        and "\\" not in filename
+        and not path.is_absolute()
+        and not PureWindowsPath(filename).is_absolute()
+        and ".." not in path.parts
+        and bool(path.name)
+    )
+
+
+def _content_disposition(filename: str, disposition: str) -> str:
+    basename = PurePosixPath(filename).name
+    quoted_basename = quote(basename)
+    if quoted_basename != basename:
+        return f"{disposition}; filename*=utf-8''{quoted_basename}"
+    return f'{disposition}; filename="{basename}"'
 
 
 @app.get("/health")
@@ -58,6 +88,44 @@ async def get_case(email_id: str) -> CaseRecord:
     return cases[email_id]
 
 
+@app.get("/api/cases/{email_id}/attachment")
+async def get_case_attachment(email_id: str, filename: str) -> Response:
+    case = cases.get(email_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found.")
+
+    known_attachments = set(case.email.attachments)
+    known_attachments.update(
+        attachment
+        for attachment in (case.si_attachment, case.bl_attachment)
+        if attachment is not None
+    )
+    if not _is_safe_attachment_path(filename) or filename not in known_attachments:
+        raise HTTPException(
+            status_code=404,
+            detail="Attachment not found for this case.",
+        )
+
+    try:
+        content = await inbox.get_attachment(filename)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            raise HTTPException(status_code=404, detail="Attachment not found.") from exc
+        raise HTTPException(status_code=502, detail="Inbox service unavailable.") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="Inbox service unavailable.") from exc
+
+    suffix = PurePosixPath(filename).suffix.casefold()
+    disposition = "inline" if suffix in INLINE_ATTACHMENT_TYPES else "attachment"
+    return Response(
+        content=content,
+        media_type=ATTACHMENT_MEDIA_TYPES.get(suffix, "application/octet-stream"),
+        headers={
+            "Content-Disposition": _content_disposition(filename, disposition),
+        },
+    )
+
+
 @app.get("/api/submission")
 async def get_submission() -> dict[str, dict[str, object]]:
     submission: dict[str, dict[str, object]] = {}
@@ -73,4 +141,3 @@ async def get_submission() -> dict[str, dict[str, object]]:
         )
         submission[email_id] = entry.model_dump(mode="json")
     return submission
-
