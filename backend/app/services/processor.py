@@ -17,12 +17,31 @@ from app.services.document_reader import DocumentReadError, document_to_text
 from app.services.text_extractor import extract_shipping_fields
 
 
+WRONG_DOCUMENT_TITLES = {
+    "commercial invoice",
+    "packing list",
+    "certificate of origin",
+}
+WRONG_DOCUMENT_DISCLAIMERS = (
+    "not an si or bl",
+    "packing list only",
+)
+
+
 def _find_attachment(attachments: list[str], token: str) -> str | None:
     for path in attachments:
         stem = PurePosixPath(path).stem
         if re.search(rf"(?:^|[_\-\s]){token}(?:$|[_\-\s])", stem, flags=re.IGNORECASE):
             return path
     return None
+
+
+def _is_wrong_document_type(text: str) -> bool:
+    lines = [line.strip().casefold() for line in text.splitlines() if line.strip()]
+    if lines and lines[0] in WRONG_DOCUMENT_TITLES:
+        return True
+    combined = "\n".join(lines)
+    return any(marker in combined for marker in WRONG_DOCUMENT_DISCLAIMERS)
 
 
 class CaseProcessor:
@@ -56,8 +75,19 @@ class CaseProcessor:
                     self.inbox.get_attachment(si_path),
                     self.inbox.get_attachment(bl_path),
                 )
-                si_fields = extract_shipping_fields(document_to_text(si_path, si_content))
-                bl_fields = extract_shipping_fields(document_to_text(bl_path, bl_content))
+                si_text = document_to_text(si_path, si_content)
+                bl_text = document_to_text(bl_path, bl_content)
+                if _is_wrong_document_type(si_text) or _is_wrong_document_type(bl_text):
+                    return CaseRecord(
+                        email=email,
+                        category=category,
+                        status=CaseStatus.NEEDS_REVIEW,
+                        si_attachment=si_path,
+                        bl_attachment=bl_path,
+                        review_reason=ReviewReason.WRONG_DOC_TYPE,
+                    )
+                si_fields = extract_shipping_fields(si_text)
+                bl_fields = extract_shipping_fields(bl_text)
             except (DocumentReadError, UnicodeDecodeError, OSError):
                 return CaseRecord(
                     email=email,

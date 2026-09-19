@@ -1,6 +1,7 @@
 from io import BytesIO
 
 import pymupdf
+import pytest
 from docx import Document
 from openpyxl import Workbook
 
@@ -180,6 +181,15 @@ def make_xlsx_docx_inbox() -> AttachmentInbox:
     )
 
 
+def make_txt_inbox(bl_text: str, si_text: str = SI_TEXT) -> AttachmentInbox:
+    return AttachmentInbox(
+        {
+            "attachments/email_txt_SI.txt": si_text.encode(),
+            "attachments/email_txt_BL.txt": bl_text.encode(),
+        }
+    )
+
+
 async def test_processor_builds_a_complete_matching_case() -> None:
     processor = CaseProcessor(FakeInbox())
     cases = await processor.process_all()
@@ -187,7 +197,32 @@ async def test_processor_builds_a_complete_matching_case() -> None:
     case = cases[0]
     assert case.category is EmailCategory.BL_COMPARISON
     assert case.status is CaseStatus.MATCH
+    assert case.review_reason is None
     assert len(case.comparison) == 7
+
+
+@pytest.mark.parametrize(
+    "wrong_document",
+    (
+        "COMMERCIAL INVOICE\nSeller: ACME EXPORTS\nBuyer: ACME IMPORTS",
+        "PACKING LIST\nShipper: ACME EXPORTS\nConsignee: ACME IMPORTS",
+        "CERTIFICATE OF ORIGIN\nExporter: ACME EXPORTS",
+        f"{BL_TEXT}\n*** THIS IS NOT AN SI OR BL ***",
+        f"{BL_TEXT}\n*** PACKING LIST ONLY - NO PORT OR VESSEL DETAILS ***",
+    ),
+)
+async def test_processor_marks_strong_wrong_document_indicators_for_review(
+    wrong_document: str,
+) -> None:
+    inbox = make_txt_inbox(wrong_document)
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.status is CaseStatus.NEEDS_REVIEW
+    assert case.review_reason.value == "wrong_doc_type"
+    assert case.si_fields is None
+    assert case.bl_fields is None
+    assert case.comparison == []
 
 
 async def test_processor_extracts_all_seven_fields_from_xlsx_si() -> None:
