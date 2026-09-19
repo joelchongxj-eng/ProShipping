@@ -1,41 +1,142 @@
 # ProShipping
-# Features
-Planned Features
-1. Dashboard
-View document verification cases and their current status:
-- Matched: All required fields were checked and agree.
-- Mismatch: One or more differences were identified.
-- Needs Review: Missing or uncertain information requires human verification.
-- Failed: Processing could not be completed and may require a retry.
-Users can open each case to inspect its results and supporting evidence.
-2. SI and BL Comparison
-Compare the documents side by side across seven fields:
+## Planned Features
+
+### 1. Inbox and Email Classification
+
+Provide an inbox view for incoming shipping-related emails and automatically classify each email into categories such as:
+
+- **Document Comparison Request**
+- **New Shipping Instruction Request**
+- **Invoice Query**
+- **General Message**
+- **Spam**
+
+Only emails classified as **Document Comparison Requests** continue into the SI and draft BL verification workflow.
+
+The inbox allows users to:
+
+- View the email sender, subject, category, and processing status.
+- Filter emails by category or status.
+- Open an email to view its contents and attachments.
+- See whether the email has already been processed into a verification case.
+- Identify emails that require manual attention because of missing or unclear attachments.
+
+---
+
+### 2. Dashboard
+
+View document verification cases and their current statuses:
+
+- **Matched** – All required fields were checked and agree.
+- **Mismatch** – One or more differences were identified.
+- **Needs Review** – Missing or uncertain information requires human verification.
+- **Failed** – Processing could not be completed and may require a retry.
+
+Users can open each case to inspect its comparison results and supporting evidence.
+
+---
+
+### 3. SI and BL Comparison
+
+Compare the Shipping Instruction (SI) and draft Bill of Lading (BL) side by side across seven required fields:
+
 - Shipper
 - Consignee
-- Notify party
-- Port of loading
-- Port of discharge
-- Container count
-- Gross weight in kilograms
-Highlight mismatched values in the comparison table and show supporting source text to help users verify each discrepancy.
-3. Confidence and Evidence
-Display extraction confidence for individual fields alongside the source evidence.
-This helps users identify values that need closer inspection. Confidence indicates certainty in reading a value, rather than whether the SI and BL match.
-4. AI-Generated Message Drafts
-Generate message drafts based on verification results:
-- A confirmation message when all required fields match.
-- A correction request describing confirmed differences between the SI and draft BL.
-Users can review, edit, and copy the draft before sending it to the appropriate contact. Messages are not sent automatically.
-5. Human Review and Feedback
-Allow users to review uncertain results, correct extracted values, and confirm when differently written values mean the same thing.
-Save corrections and approved equivalences to support future checks, then rerun the comparison to update the result. This feedback does not automatically retrain the AI model.
-6. Manual Document Upload
-Allow users to upload an SI and a draft BL for verification.
-After processing, display the comparison result, mismatched fields, confidence information, and any issues requiring review.
+- Notify Party
+- Port of Loading
+- Port of Discharge
+- Container Count
+- Gross Weight in Kilograms
+
+Mismatched values are highlighted in the comparison table.
+
+Supporting source text is also displayed to help users verify each identified discrepancy.
+
+---
+
+### 4. Confidence and Evidence
+
+Display extraction confidence for individual fields together with the relevant source evidence.
+
+The confidence level indicates how certain the system is that a value has been correctly read or extracted from the document.
+
+> **Note:** Extraction confidence does not represent whether the SI and draft BL values match.
+
+This helps users identify fields that may require closer inspection or human review.
+
+---
+
+### 5. AI-Generated Message Drafts
+
+Generate editable message drafts based on the final verification result.
+
+The system can generate:
+
+- A **confirmation message** when all required fields match.
+- A **correction request** describing confirmed differences between the SI and draft BL.
+
+Users can review, edit, and copy the generated draft before sending it through the appropriate communication platform.
+
+The system does **not** automatically send messages.
+
+---
+
+### 6. Human Review and Feedback
+
+Allow users to review uncertain results and provide corrections when necessary.
+
+Users can:
+
+- Confirm an extracted value.
+- Correct an incorrectly extracted value.
+- Confirm that differently written values represent the same information.
+- Review values that are missing, unclear, or uncertain.
+
+Approved corrections and equivalences can be saved to support future document checks.
+
+After corrections are made, the comparison can be rerun so that the verification result and case status are updated.
+
+> The feedback mechanism does not automatically retrain the AI model.
+
+---
+
+### 7. Manual Document Upload
+
+Allow users to manually upload an SI and a corresponding draft BL for verification without requiring an email.
+
+After processing, the system displays:
+
+- Overall verification status
+- SI and draft BL comparison results
+- Mismatched fields
+- Extraction confidence information
+- Supporting evidence
+- Issues requiring human review
+
+---
 
 ## User Workflow
+
+### Email Workflow
+
+1. Receive and classify incoming emails in the inbox.
+2. Open or filter emails based on their category or processing status.
+3. For a **Document Comparison Request**, retrieve the attached SI and draft BL.
+4. Process the documents and create a verification case.
+5. View the verification status on the dashboard.
+6. Open the case to inspect field comparisons, confidence information, and supporting evidence.
+7. Review uncertain values, confirm discrepancies, or correct extracted information where necessary.
+8. Rerun the comparison if corrections were made.
+9. Generate and edit a message draft if follow-up communication is required.
+
+---
+
+### Manual Upload Workflow
+
 1. Upload an SI and its corresponding draft BL.
-2. View the verification status on the dashboard.
-3. Open the case to inspect field comparisons and evidence.
-4. Review uncertain values or confirm discrepancies.
-5. Generate and edit a message draft if follow-up is needed.
+2. Process the documents and create a verification case.
+3. View the verification status on the dashboard.
+4. Open the case to inspect field comparisons, confidence information, and supporting evidence.
+5. Review uncertain values, confirm discrepancies, or correct extracted information where necessary.
+6. Rerun the comparison if corrections were made.
+7. Generate and edit a message draft if follow-up communication is required.
