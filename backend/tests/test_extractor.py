@@ -117,6 +117,7 @@ def test_extracts_shipper_from_supported_labels(label: str) -> None:
     (
         "Consignee",
         "Consignee (Non-Negotiable)",
+        "To the Order of",
     ),
 )
 def test_extracts_consignee_from_supported_labels(label: str) -> None:

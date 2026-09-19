@@ -15,7 +15,11 @@ FIELD_PATTERNS: dict[str, tuple[str, ...]] = {
         r"shipper \(principal or seller\)",
         r"exporter",
     ),
-    "consignee": (r"consignee", r"consignee \(non-negotiable\)"),
+    "consignee": (
+        r"consignee",
+        r"consignee \(non-negotiable\)",
+        r"to the order of",
+    ),
     "notify_party": (
         r"notify party",
         r"notify",
