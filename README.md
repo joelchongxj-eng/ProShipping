@@ -16,6 +16,27 @@ ProShipping verifies Shipping Instructions (SI) against Draft Bills of Lading (B
 
 PDF, DOCX, XLSX, scanned-document AI extraction, review actions, escalation, and persistence are scheduled for the next milestones.
 
+## Optional Day 1 AI mode
+
+The `data` branch includes an optional Gemini path for email classification and
+TXT SI/BL field extraction. The default deterministic path remains available.
+Set these environment variables before starting the backend to enable AI:
+
+```powershell
+$env:AI_ENABLED = "1"
+$env:GEMINI_API_KEY = "your-key-from-Google-AI-Studio"
+$env:GEMINI_MODEL = "gemini-3.8-flash"
+```
+
+Keep the API key out of Git. AI mode calls Gemini for every email and each TXT
+comparison attachment, so processing the full dataset can incur API usage.
+The AI response is validated against the backend field schema and each cited
+text excerpt is checked against the source. Missing fields and wrong document
+types go to review; AI request failures are marked `FAILED`. The `0.85`
+confidence value means the evidence check passed; it is not a measured model
+probability. Live Gemini accuracy has not yet been evaluated; the automated
+tests use synthetic model responses.
+
 ## Run locally
 
 First start the competition data service on port 8080 from its separate local directory:

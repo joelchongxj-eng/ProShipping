@@ -2,6 +2,8 @@ import asyncio
 import re
 from pathlib import PurePosixPath
 
+import httpx
+
 from app.clients.inbox import InboxProtocol
 from app.models import (
     CaseRecord,
@@ -11,6 +13,8 @@ from app.models import (
     FieldStatus,
     ReviewReason,
 )
+from app.services.ai_models import DocumentType
+from app.services.ai_service import AIResponseError, AIService
 from app.services.classifier import classify_email
 from app.services.comparison import compare_documents
 from app.services.text_extractor import extract_shipping_fields
@@ -25,9 +29,10 @@ def _find_attachment(attachments: list[str], token: str) -> str | None:
 
 
 class CaseProcessor:
-    def __init__(self, inbox: InboxProtocol, concurrency: int = 12) -> None:
+    def __init__(self, inbox: InboxProtocol, concurrency: int = 12, ai_service: AIService | None = None) -> None:
         self.inbox = inbox
         self._semaphore = asyncio.Semaphore(concurrency)
+        self.ai_service = ai_service
 
     async def process_all(self) -> list[CaseRecord]:
         emails = await self.inbox.list_emails()
@@ -35,7 +40,16 @@ class CaseProcessor:
 
     async def process_email(self, email: EmailRecord) -> CaseRecord:
         async with self._semaphore:
-            category = classify_email(email)
+            if self.ai_service:
+                try:
+                    classification = await self.ai_service.classify(email)
+                except (AIResponseError, httpx.HTTPError):
+                    return CaseRecord(email=email, category=classify_email(email), status=CaseStatus.FAILED)
+                category = classification.category
+                if classification.uncertain:
+                    return CaseRecord(email=email, category=category, status=CaseStatus.NEEDS_REVIEW)
+            else:
+                category = classify_email(email)
             if category is not EmailCategory.BL_COMPARISON:
                 return CaseRecord(email=email, category=category, status=CaseStatus.MATCH)
 
@@ -65,8 +79,24 @@ class CaseProcessor:
                     self.inbox.get_attachment(si_path),
                     self.inbox.get_attachment(bl_path),
                 )
-                si_fields = extract_shipping_fields(si_text.decode("utf-8-sig"))
-                bl_fields = extract_shipping_fields(bl_text.decode("utf-8-sig"))
+                if self.ai_service:
+                    si_doc, bl_doc = await asyncio.gather(
+                        self.ai_service.extract_text(si_text.decode("utf-8-sig"), si_path),
+                        self.ai_service.extract_text(bl_text.decode("utf-8-sig"), bl_path),
+                    )
+                    if si_doc.document_type is not DocumentType.SI or bl_doc.document_type is not DocumentType.BL:
+                        return CaseRecord(
+                            email=email,
+                            category=category,
+                            status=CaseStatus.NEEDS_REVIEW,
+                            si_attachment=si_path,
+                            bl_attachment=bl_path,
+                            review_reason=ReviewReason.WRONG_DOC_TYPE,
+                        )
+                    si_fields, bl_fields = si_doc.fields, bl_doc.fields
+                else:
+                    si_fields = extract_shipping_fields(si_text.decode("utf-8-sig"))
+                    bl_fields = extract_shipping_fields(bl_text.decode("utf-8-sig"))
             except (UnicodeDecodeError, OSError):
                 return CaseRecord(
                     email=email,
@@ -75,6 +105,14 @@ class CaseProcessor:
                     si_attachment=si_path,
                     bl_attachment=bl_path,
                     review_reason=ReviewReason.UNREADABLE,
+                )
+            except (AIResponseError, httpx.HTTPError):
+                return CaseRecord(
+                    email=email,
+                    category=category,
+                    status=CaseStatus.FAILED,
+                    si_attachment=si_path,
+                    bl_attachment=bl_path,
                 )
 
             result = compare_documents(si_fields, bl_fields)

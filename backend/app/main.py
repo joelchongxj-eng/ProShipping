@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.clients.inbox import InboxClient
 from app.models import CaseRecord, FieldStatus
+from app.services.ai_service import AIService
 from app.services.processor import CaseProcessor
 from app.services.submission import build_submission_entry
 
@@ -20,7 +21,7 @@ app.add_middleware(
 )
 
 inbox = InboxClient(os.getenv("INBOX_BASE_URL", "http://localhost:8080"))
-processor = CaseProcessor(inbox)
+processor = CaseProcessor(inbox, ai_service=AIService() if os.getenv("AI_ENABLED") == "1" else None)
 cases: dict[str, CaseRecord] = {}
 
 

@@ -71,7 +71,11 @@ class AIService:
                         continue
                     if not field.raw_value.strip() or field.evidence not in text or field.raw_value not in field.evidence:
                         raise AIResponseError(f"Invalid evidence for {name}")
-                    converted[name] = _build_field(name, field.raw_value, field.evidence).model_copy(update={"page": None})
+                    # Existing comparison threshold is 0.85. This marks a field that passed
+                    # source-evidence checks; it is not a calibrated model probability.
+                    converted[name] = _build_field(name, field.raw_value, field.evidence).model_copy(
+                        update={"page": None, "confidence": 0.85}
+                    )
                 return ExtractedDocument(document_type=raw.document_type, fields=ShippingFields(**converted))
             except (AIResponseError, ValidationError) as exc:
                 if attempt:
