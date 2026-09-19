@@ -125,3 +125,19 @@ def test_extracts_consignee_from_supported_labels(label: str) -> None:
     assert fields.consignee is not None
     assert fields.consignee.raw_value == "ACME IMPORTS LTD"
     assert fields.consignee.normalized_value == "acme imports ltd"
+
+
+@pytest.mark.parametrize(
+    "label",
+    (
+        "Notify Party",
+        "Notify",
+        "Notify Party/Intermediate Consignee",
+    ),
+)
+def test_extracts_notify_party_from_supported_labels(label: str) -> None:
+    fields = extract_shipping_fields(f"{label}: ACME NOTIFY LTD")
+
+    assert fields.notify_party is not None
+    assert fields.notify_party.raw_value == "ACME NOTIFY LTD"
+    assert fields.notify_party.normalized_value == "acme notify ltd"

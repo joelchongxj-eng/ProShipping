@@ -16,7 +16,11 @@ FIELD_PATTERNS: dict[str, tuple[str, ...]] = {
         r"exporter",
     ),
     "consignee": (r"consignee", r"consignee \(non-negotiable\)"),
-    "notify_party": (r"notify party", r"notify"),
+    "notify_party": (
+        r"notify party",
+        r"notify",
+        r"notify party/intermediate consignee",
+    ),
     "port_of_loading": (r"port of loading(?: \(pol\))?", r"load port", r"pol"),
     "port_of_discharge": (
         r"port of discharge",
