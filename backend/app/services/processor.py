@@ -90,11 +90,13 @@ class CaseProcessor:
                     si_document.text,
                     source_filename=si_path,
                     source_pages=si_document.pages,
+                    source_lines=si_document.source_lines,
                 )
                 bl_fields = extract_shipping_fields(
                     bl_document.text,
                     source_filename=bl_path,
                     source_pages=bl_document.pages,
+                    source_lines=bl_document.source_lines,
                 )
             except (DocumentReadError, UnicodeDecodeError, OSError):
                 return CaseRecord(

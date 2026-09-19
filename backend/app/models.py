@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -48,10 +49,30 @@ class EmailRecord(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class TxtSourceLocator(BaseModel):
+    kind: Literal["txt"] = "txt"
+    line_number: int = Field(ge=1)
+    start_char: int = Field(ge=0)
+    end_char: int = Field(ge=0)
+
+
+class XlsxSourceLocator(BaseModel):
+    kind: Literal["xlsx"] = "xlsx"
+    sheet_name: str
+    cell_address: str
+
+
+SourceLocator = Annotated[
+    TxtSourceLocator | XlsxSourceLocator,
+    Field(discriminator="kind"),
+]
+
+
 class SourceLocation(BaseModel):
     filename: str
     page: int | None = None
     evidence_text: str
+    locator: SourceLocator | None = None
 
 
 class ExtractedField(BaseModel):

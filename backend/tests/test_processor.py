@@ -6,7 +6,7 @@ from docx import Document
 from openpyxl import Workbook
 
 from app.models import CaseStatus, EmailCategory, EmailRecord, ShippingFields
-from app.services.document_reader import document_to_text
+from app.services.document_reader import document_to_text, read_document
 from app.services.processor import CaseProcessor
 from app.services.text_extractor import extract_shipping_fields
 
@@ -48,9 +48,10 @@ class AttachmentInbox:
         return self.attachments[path]
 
 
-def make_xlsx(labels: tuple[str, ...]) -> bytes:
+def make_xlsx(labels: tuple[str, ...], sheet_name: str = "Sheet") -> bytes:
     workbook = Workbook()
     worksheet = workbook.active
+    worksheet.title = sheet_name
     values: tuple[str | int, ...] = (
         "APRIL FAR EAST (M) SDN BHD",
         "MOORIM SP CO., LTD",
@@ -356,6 +357,54 @@ async def test_processor_populates_txt_source_metadata_without_changing_legacy_f
     )
 
 
+async def test_processor_populates_txt_line_and_character_locator() -> None:
+    inbox = FakeInbox()
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.si_fields is not None
+    assert case.si_fields.gross_weight_kg is not None
+    assert case.si_fields.gross_weight_kg.source is not None
+    locator = getattr(case.si_fields.gross_weight_kg.source, "locator", None)
+    assert locator is not None
+    assert locator.model_dump() == {
+        "kind": "txt",
+        "line_number": 8,
+        "start_char": 19,
+        "end_char": 28,
+    }
+    comparison = next(
+        item for item in case.comparison if item.field == "gross_weight_kg"
+    )
+    assert comparison.si is not None
+    assert comparison.si.source is not None
+    assert comparison.si.source.locator == locator
+
+
+@pytest.mark.parametrize(
+    "si_text",
+    (
+        SI_TEXT.replace(
+            "Shipper/Exporter: APRIL FAR EAST (M) SDN BHD",
+            "Shipper: Shipper",
+        ),
+        SI_TEXT.replace(
+            "Shipper/Exporter: APRIL FAR EAST (M) SDN BHD",
+            "Shipper: ACME SHIPPING LTD\nShipper: ACME SHIPPING LTD",
+        ),
+    ),
+)
+async def test_processor_leaves_ambiguous_txt_locator_null(si_text: str) -> None:
+    inbox = make_txt_inbox(BL_TEXT, si_text=si_text)
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.si_fields is not None
+    assert case.si_fields.shipper is not None
+    assert case.si_fields.shipper.source is not None
+    assert getattr(case.si_fields.shipper.source, "locator", None) is None
+
+
 async def test_processor_populates_xlsx_and_docx_source_metadata() -> None:
     inbox = make_xlsx_docx_inbox()
 
@@ -373,6 +422,65 @@ async def test_processor_populates_xlsx_and_docx_source_metadata() -> None:
         "attachments/email_xlsx_BL.docx",
         page=None,
     )
+    assert all(
+        field is None or field.source is None or field.source.locator is None
+        for _, field in case.bl_fields
+    )
+
+
+async def test_processor_populates_xlsx_sheet_and_value_cell_locator() -> None:
+    labels = (
+        "Shipper/Exporter",
+        "Consignee (Non-Negotiable)",
+        "Notify Party",
+        "Port of Loading",
+        "Port of Discharge",
+        "No. of Containers",
+        "Gross Weight (KG)",
+    )
+    content = make_xlsx(labels, sheet_name="Shipping Data")
+    inbox = AttachmentInbox(
+        {
+            "attachments/email_xlsx_SI.xlsx": content,
+            "attachments/email_xlsx_BL.xlsx": content,
+        }
+    )
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.si_fields is not None
+    assert case.si_fields.shipper is not None
+    assert case.si_fields.gross_weight_kg is not None
+    assert case.si_fields.shipper.source is not None
+    assert case.si_fields.gross_weight_kg.source is not None
+    shipper_locator = getattr(case.si_fields.shipper.source, "locator", None)
+    weight_locator = getattr(case.si_fields.gross_weight_kg.source, "locator", None)
+    assert shipper_locator is not None
+    assert weight_locator is not None
+    assert shipper_locator.model_dump() == {
+        "kind": "xlsx",
+        "sheet_name": "Shipping Data",
+        "cell_address": "B4",
+    }
+    assert weight_locator.model_dump() == {
+        "kind": "xlsx",
+        "sheet_name": "Shipping Data",
+        "cell_address": "B10",
+    }
+
+
+def test_xlsx_locator_is_null_without_a_reliable_source_mapping() -> None:
+    filename = "attachments/email_xlsx_SI.xlsx"
+    document = read_document(filename, SI_XLSX)
+
+    fields = extract_shipping_fields(
+        document.text,
+        source_filename=filename,
+    )
+
+    assert fields.shipper is not None
+    assert fields.shipper.source is not None
+    assert getattr(fields.shipper.source, "locator", None) is None
 
 
 async def test_processor_maps_pdf_evidence_to_one_based_page_numbers() -> None:
@@ -393,6 +501,8 @@ async def test_processor_maps_pdf_evidence_to_one_based_page_numbers() -> None:
     assert case.si_fields.gross_weight_kg.source is not None
     assert case.si_fields.shipper.source.page == 1
     assert case.si_fields.gross_weight_kg.source.page == 2
+    assert case.si_fields.shipper.source.locator is None
+    assert case.si_fields.gross_weight_kg.source.locator is None
     assert case.si_fields.shipper.source.filename == "attachments/email_pdf_SI.pdf"
     assert case.si_fields.gross_weight_kg.source.evidence_text == (
         "Gross Weight (KG): 21,577 KG"

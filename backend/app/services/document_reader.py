@@ -22,9 +22,18 @@ class DocumentPage:
 
 
 @dataclass(frozen=True)
+class DocumentSourceLine:
+    text: str
+    line_number: int | None = None
+    sheet_name: str | None = None
+    cell_address: str | None = None
+
+
+@dataclass(frozen=True)
 class DocumentContent:
     text: str
     pages: tuple[DocumentPage, ...] = ()
+    source_lines: tuple[DocumentSourceLine, ...] = ()
 
 
 CHINESE_PRESENTATION_SUFFIX = re.compile(
@@ -38,7 +47,7 @@ def _cell_to_text(value: object) -> str:
     return str(value).strip()
 
 
-def _xlsx_to_text(content: bytes) -> str:
+def _xlsx_to_document(content: bytes) -> DocumentContent:
     try:
         workbook = load_workbook(BytesIO(content), data_only=True, read_only=True)
     except (BadZipFile, InvalidFileException, OSError, ValueError) as exc:
@@ -47,14 +56,32 @@ def _xlsx_to_text(content: bytes) -> str:
     try:
         worksheet = workbook.active
         lines: list[str] = []
-        for label, value in worksheet.iter_rows(min_col=1, max_col=2, values_only=True):
+        source_lines: list[DocumentSourceLine] = []
+        for label_cell, value_cell in worksheet.iter_rows(
+            min_col=1,
+            max_col=2,
+            values_only=False,
+        ):
+            label = label_cell.value
+            value = value_cell.value
             if label is None or value is None:
                 continue
             label_text = _cell_to_text(label)
             value_text = _cell_to_text(value)
             if label_text and value_text:
-                lines.append(f"{label_text}: {value_text}")
-        return "\n".join(lines)
+                line = f"{label_text}: {value_text}"
+                lines.append(line)
+                source_lines.append(
+                    DocumentSourceLine(
+                        text=line,
+                        sheet_name=worksheet.title,
+                        cell_address=value_cell.coordinate,
+                    )
+                )
+        return DocumentContent(
+            text="\n".join(lines),
+            source_lines=tuple(source_lines),
+        )
     finally:
         workbook.close()
 
@@ -140,9 +167,16 @@ def _pdf_to_document(content: bytes) -> DocumentContent:
 def read_document(filename: str, content: bytes) -> DocumentContent:
     suffix = PurePosixPath(filename).suffix.casefold()
     if suffix == ".txt":
-        return DocumentContent(text=content.decode("utf-8-sig"))
+        text = content.decode("utf-8-sig")
+        return DocumentContent(
+            text=text,
+            source_lines=tuple(
+                DocumentSourceLine(text=line, line_number=line_number)
+                for line_number, line in enumerate(text.splitlines(), start=1)
+            ),
+        )
     if suffix == ".xlsx":
-        return DocumentContent(text=_xlsx_to_text(content))
+        return _xlsx_to_document(content)
     if suffix == ".docx":
         return DocumentContent(text=_docx_to_text(content))
     if suffix == ".pdf":

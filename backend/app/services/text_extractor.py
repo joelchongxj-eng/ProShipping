@@ -1,7 +1,14 @@
 import re
 
-from app.models import ExtractedField, ShippingFields, SourceLocation
-from app.services.document_reader import DocumentPage
+from app.models import (
+    ExtractedField,
+    ShippingFields,
+    SourceLocation,
+    SourceLocator,
+    TxtSourceLocator,
+    XlsxSourceLocator,
+)
+from app.services.document_reader import DocumentPage, DocumentSourceLine
 from app.services.normalization import (
     normalize_container_count,
     normalize_decimal,
@@ -75,12 +82,46 @@ def _find_evidence_page(
     return matching_pages.pop() if len(matching_pages) == 1 else None
 
 
+def _find_source_locator(
+    evidence: str,
+    raw_value: str,
+    source_lines: tuple[DocumentSourceLine, ...],
+) -> SourceLocator | None:
+    matching_lines = [
+        source_line
+        for source_line in source_lines
+        if source_line.text.strip() == evidence
+    ]
+    if len(matching_lines) != 1:
+        return None
+
+    source_line = matching_lines[0]
+    if source_line.line_number is not None:
+        occurrences = list(re.finditer(re.escape(raw_value), source_line.text))
+        if len(occurrences) != 1:
+            return None
+        occurrence = occurrences[0]
+        return TxtSourceLocator(
+            line_number=source_line.line_number,
+            start_char=occurrence.start(),
+            end_char=occurrence.end(),
+        )
+
+    if source_line.sheet_name is not None and source_line.cell_address is not None:
+        return XlsxSourceLocator(
+            sheet_name=source_line.sheet_name,
+            cell_address=source_line.cell_address,
+        )
+    return None
+
+
 def _build_field(
     name: str,
     raw_value: str,
     evidence: str,
     source_filename: str | None = None,
     source_pages: tuple[DocumentPage, ...] = (),
+    source_lines: tuple[DocumentSourceLine, ...] = (),
 ) -> ExtractedField:
     unit = None
     if name == "gross_weight_kg":
@@ -105,6 +146,7 @@ def _build_field(
                 filename=source_filename,
                 page=_find_evidence_page(evidence, source_pages),
                 evidence_text=evidence,
+                locator=_find_source_locator(evidence, raw_value, source_lines),
             )
             if source_filename is not None
             else None
@@ -117,6 +159,7 @@ def extract_shipping_fields(
     *,
     source_filename: str | None = None,
     source_pages: tuple[DocumentPage, ...] = (),
+    source_lines: tuple[DocumentSourceLine, ...] = (),
 ) -> ShippingFields:
     extracted: dict[str, ExtractedField | None] = {}
     for name, patterns in FIELD_PATTERNS.items():
@@ -127,6 +170,7 @@ def extract_shipping_fields(
                 *found,
                 source_filename=source_filename,
                 source_pages=source_pages,
+                source_lines=source_lines,
             )
             if found
             else None

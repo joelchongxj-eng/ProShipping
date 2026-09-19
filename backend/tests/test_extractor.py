@@ -1,6 +1,11 @@
 import pytest
 
-from app.models import ExtractedField, SourceLocation
+from app.models import (
+    ExtractedField,
+    SourceLocation,
+    TxtSourceLocator,
+    XlsxSourceLocator,
+)
 from app.services.text_extractor import extract_shipping_fields
 
 
@@ -45,6 +50,43 @@ def test_source_location_schema_is_optional_for_backward_compatibility() -> None
         "filename": "attachments/email_001_SI.txt",
         "page": None,
         "evidence_text": "Shipper: ACME SHIPPING LTD",
+        "locator": None,
+    }
+
+
+def test_source_location_accepts_txt_and_xlsx_locators() -> None:
+    txt_source = SourceLocation(
+        filename="attachments/email_001_SI.txt",
+        page=None,
+        evidence_text="Gross Weight (KG): 21,577 KG",
+        locator=TxtSourceLocator(
+            kind="txt",
+            line_number=8,
+            start_char=19,
+            end_char=28,
+        ),
+    )
+    xlsx_source = SourceLocation(
+        filename="attachments/email_055_SI.xlsx",
+        page=None,
+        evidence_text="Gross Weight (KG): 21577",
+        locator=XlsxSourceLocator(
+            kind="xlsx",
+            sheet_name="Shipping Data",
+            cell_address="B10",
+        ),
+    )
+
+    assert txt_source.model_dump()["locator"] == {
+        "kind": "txt",
+        "line_number": 8,
+        "start_char": 19,
+        "end_char": 28,
+    }
+    assert xlsx_source.model_dump()["locator"] == {
+        "kind": "xlsx",
+        "sheet_name": "Shipping Data",
+        "cell_address": "B10",
     }
 
 
