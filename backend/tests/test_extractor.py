@@ -57,3 +57,20 @@ def test_extracts_container_count_from_supported_labels(
     assert fields.container_count is not None
     assert fields.container_count.raw_value == value
     assert fields.container_count.normalized_value == expected
+
+
+@pytest.mark.parametrize(
+    "label",
+    (
+        "Port of Discharge",
+        "Port of Discharge (POD)",
+        "Discharge Port",
+        "POD",
+    ),
+)
+def test_extracts_port_of_discharge_from_supported_labels(label: str) -> None:
+    fields = extract_shipping_fields(f"{label}: CALLAO, PERU")
+
+    assert fields.port_of_discharge is not None
+    assert fields.port_of_discharge.raw_value == "CALLAO, PERU"
+    assert fields.port_of_discharge.normalized_value == "callao peru"

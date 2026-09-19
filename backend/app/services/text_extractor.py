@@ -14,7 +14,12 @@ FIELD_PATTERNS: dict[str, tuple[str, ...]] = {
     "consignee": (r"consignee",),
     "notify_party": (r"notify party", r"notify"),
     "port_of_loading": (r"port of loading(?: \(pol\))?", r"load port", r"pol"),
-    "port_of_discharge": (r"port of discharge", r"discharge port", r"pod"),
+    "port_of_discharge": (
+        r"port of discharge",
+        r"port of discharge \(pod\)",
+        r"discharge port",
+        r"pod",
+    ),
     "container_count": (
         r"no\. of containers or packages",
         r"no\. of containers",
