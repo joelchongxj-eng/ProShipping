@@ -24,7 +24,7 @@ Set these environment variables before starting the backend to enable AI:
 
 ```powershell
 $env:AI_ENABLED = "1"
-$env:GEMINI_API_KEY = "your-key-from-Google-AI-Studio"
+$env:GEMINI_API_KEY = Read-Host "Gemini API key" -MaskInput
 $env:GEMINI_MODEL = "gemini-3.8-flash"
 ```
 
@@ -34,8 +34,9 @@ The AI response is validated against the backend field schema and each cited
 text excerpt is checked against the source. Missing fields and wrong document
 types go to review; AI request failures are marked `FAILED`. The `0.85`
 confidence value means the evidence check passed; it is not a measured model
-probability. Live Gemini accuracy has not yet been evaluated; the automated
-tests use synthetic model responses.
+probability. Three hand-checked TXT pairs passed live Gemini smoke checks (see
+`docs/day-1-baseline.md`), but full-dataset AI accuracy has not been measured.
+The automated tests use synthetic model responses.
 
 To check one real TXT pair before processing the whole inbox, run this from
 `backend` in the same PowerShell session where `GEMINI_API_KEY` is set:

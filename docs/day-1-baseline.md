@@ -14,3 +14,15 @@ The backend processed all 520 competition emails and produced a schema-valid sub
 
 This is the deterministic Day 1 baseline. The next accuracy work is document-type detection, non-TXT extraction, missing-value handling, alias rules, and AI-assisted classification/extraction.
 
+## AI smoke checks
+
+On 2026-09-19, the team ran the optional Gemini 3.8 Flash TXT extraction on three real SI/BL pairs and checked the results against the source documents:
+
+| Pair | Hand-checked expectation | AI result |
+| --- | --- | --- |
+| `email_001` | All seven fields match | `MATCH`; all seven fields match |
+| `email_091` | Container count differs: SI 3, BL 2 | `MISMATCH`; only `container_count` differs |
+| `email_031` | Container count differs: SI 1, BL 3; gross weight differs: SI 21,114 KG, BL 23,114 KG | `MISMATCH`; both fields differ |
+
+These are three selected TXT examples, not an accuracy estimate for the 520-email dataset. PDF, DOCX, XLSX, and scanned attachments were not tested through this AI path.
+
