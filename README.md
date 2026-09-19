@@ -1,41 +1,118 @@
-# ProShipping
-# Features
-Planned Features
-1. Dashboard
-View document verification cases and their current status:
-- Matched: All required fields were checked and agree.
-- Mismatch: One or more differences were identified.
-- Needs Review: Missing or uncertain information requires human verification.
-- Failed: Processing could not be completed and may require a retry.
-Users can open each case to inspect its results and supporting evidence.
-2. SI and BL Comparison
-Compare the documents side by side across seven fields:
+## Features
+
+### 1. Dashboard
+
+The dashboard provides an overview of all shipping document verification cases and their current statuses.
+
+Each case is categorized into one of the following statuses:
+
+- **Matched** – All required fields have been checked and the SI and draft BL values agree.
+- **Mismatch** – One or more differences have been identified between the SI and draft BL.
+- **Needs Review** – Missing, unclear, or uncertain information requires human verification.
+- **Failed** – Processing could not be completed successfully and may require a retry.
+
+Users can open an individual case to view its comparison results, extracted information, confidence levels, and supporting evidence.
+
+---
+
+### 2. SI and Draft BL Comparison
+
+The system compares the **Shipping Instruction (SI)** and **draft Bill of Lading (BL)** side by side across seven required fields:
+
 - Shipper
 - Consignee
-- Notify party
-- Port of loading
-- Port of discharge
-- Container count
-- Gross weight in kilograms
-Highlight mismatched values in the comparison table and show supporting source text to help users verify each discrepancy.
-3. Confidence and Evidence
-Display extraction confidence for individual fields alongside the source evidence.
-This helps users identify values that need closer inspection. Confidence indicates certainty in reading a value, rather than whether the SI and BL match.
-4. AI-Generated Message Drafts
-Generate message drafts based on verification results:
-- A confirmation message when all required fields match.
-- A correction request describing confirmed differences between the SI and draft BL.
-Users can review, edit, and copy the draft before sending it to the appropriate contact. Messages are not sent automatically.
-5. Human Review and Feedback
-Allow users to review uncertain results, correct extracted values, and confirm when differently written values mean the same thing.
-Save corrections and approved equivalences to support future checks, then rerun the comparison to update the result. This feedback does not automatically retrain the AI model.
-6. Manual Document Upload
-Allow users to upload an SI and a draft BL for verification.
-After processing, display the comparison result, mismatched fields, confidence information, and any issues requiring review.
+- Notify Party
+- Port of Loading
+- Port of Discharge
+- Container Count
+- Gross Weight in Kilograms
+
+Matching and mismatching values are clearly indicated.
+
+When a mismatch is identified, the system displays:
+
+- The SI value
+- The draft BL value
+- Supporting source evidence
+
+This allows users to verify the identified discrepancy.
+
+---
+
+### 3. Confidence and Evidence Display
+
+The system displays an **extraction confidence level** for individual fields together with the relevant source evidence.
+
+The confidence level represents how certain the system is that it has correctly read or extracted a value from the document.
+
+> **Note:** The confidence level does not represent the probability that the SI and draft BL values match.
+
+Where available, the system also displays supporting evidence such as:
+
+- Extracted source text
+- Page number
+
+This allows users to verify how each value was obtained from the original document.
+
+---
+
+### 4. AI-Generated Message Drafts
+
+The system can generate editable message drafts based on the final verification result.
+
+For cases where all required fields match, the system can generate a **confirmation message**.
+
+For cases with confirmed mismatches, the system can generate a **correction request** describing the identified differences.
+
+Users must review and may edit the generated message before copying or sending it through an external communication platform.
+
+The system does **not** automatically send messages.
+
+---
+
+### 5. Human Review and Feedback
+
+Cases containing uncertain, missing, or unclear information can be sent for human review.
+
+Users can perform actions such as:
+
+- Confirm an extracted value.
+- Correct an incorrectly extracted value.
+- Confirm that two differently written values are equivalent.
+- Mark a value or document section as unreadable.
+
+Approved corrections and equivalences can be stored to support future document checks.
+
+After a correction is made, the comparison can be rerun so that the case status and results are updated.
+
+> The feedback mechanism does not automatically retrain the AI model.
+
+---
+
+### 6. Manual Document Upload
+
+Users can manually upload:
+
+- One **Shipping Instruction (SI)**
+- One corresponding **draft Bill of Lading (BL)**
+
+After the documents are processed, the system displays:
+
+- Overall verification status
+- Seven-field SI and draft BL comparison
+- Identified mismatches
+- Extraction confidence information
+- Supporting evidence
+- Fields or issues requiring human review
+
+---
 
 ## User Workflow
-1. Upload an SI and its corresponding draft BL.
-2. View the verification status on the dashboard.
-3. Open the case to inspect field comparisons and evidence.
-4. Review uncertain values or confirm discrepancies.
-5. Generate and edit a message draft if follow-up is needed.
+
+1. Upload a Shipping Instruction and its corresponding draft Bill of Lading.
+2. Allow the system to process and compare the documents.
+3. View the verification status from the dashboard.
+4. Open the case to inspect the seven-field comparison, confidence information, and supporting evidence.
+5. Review uncertain values, confirm discrepancies, or correct extracted information where necessary.
+6. Rerun the comparison after human review if changes were made.
+7. Generate and edit a confirmation or correction-request message when follow-up communication is required.
