@@ -92,7 +92,20 @@ def test_extracts_docx_paragraphs_and_table_cells_in_document_order():
       <w:tc><w:p><w:r><w:t>ACME</w:t><w:br/><w:t>77 ROAD</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
     </w:body></w:document>"""
     content = office_file("word/document.xml", xml)
-    assert attachment_text(content, "case_BL.docx") == "BILL OF LADING (DRAFT)\nShipper\nACME\n77 ROAD"
+    assert attachment_text(content, "case_BL.docx") == "BILL OF LADING (DRAFT)\nShipper: ACME | 77 ROAD"
+
+
+def test_extracts_bilingual_docx_table_as_labeled_fields():
+    xml = """<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+      <w:p><w:r><w:t>BILL OF LADING (DRAFT)</w:t></w:r></w:p>
+      <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Notify (通知人)</w:t></w:r></w:p></w:tc>
+      <w:tc><w:p><w:r><w:t>AL GURG STATIONERY LLC</w:t></w:r></w:p>
+      <w:p><w:r><w:t>P.O. BOX 5069</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+    </w:body></w:document>"""
+    content = office_file("word/document.xml", xml)
+    assert attachment_text(content, "case_BL.docx") == (
+        "BILL OF LADING (DRAFT)\nNotify: AL GURG STATIONERY LLC | P.O. BOX 5069"
+    )
 
 
 def test_extracts_xlsx_inline_and_numeric_cells_by_row():

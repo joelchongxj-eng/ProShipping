@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from app.models import EmailCategory, EmailRecord, ShippingFields
 from app.services.ai_models import Classification, DocumentType, ExtractedDocument, RawDocument, RawField, RawShippingFields
-from app.services.text_extractor import _build_field
+from app.services.text_extractor import _build_field, extract_shipping_fields
 
 
 class AIResponseError(ValueError):
@@ -218,6 +218,18 @@ class AIService:
         raise AssertionError("unreachable")
 
     async def extract_text(self, text: str, filename: str) -> ExtractedDocument:
+        local_fields = None
+        if filename.casefold().endswith((".docx", ".xlsx")):
+            document_type = _document_type_from_heading(text)
+            local_fields = extract_shipping_fields(text)
+            if document_type is not None and all(value is not None for _, value in local_fields):
+                return ExtractedDocument(
+                    document_type=document_type,
+                    fields=ShippingFields(**{
+                        name: value.model_copy(update={"page": None})
+                        for name, value in local_fields
+                    }),
+                )
         prompt = (
             "Identify this shipping document as SI, BL, OTHER, or UNKNOWN from its contents. "
             "A 'BILL OF LADING INSTRUCTION' is an SI, not a BL. "
@@ -249,6 +261,10 @@ class AIService:
                 _anchor_notify_party(raw.fields, text)
                 converted = {}
                 for name, field in raw.fields:
+                    local_field = getattr(local_fields, name) if local_fields is not None else None
+                    if local_field is not None:
+                        converted[name] = local_field.model_copy(update={"page": None})
+                        continue
                     if field is None:
                         converted[name] = None
                         continue

@@ -11,14 +11,15 @@ from app.services.normalization import (
 
 
 FIELD_PATTERNS: dict[str, tuple[str, ...]] = {
-    "shipper": (r"shipper(?:/exporter)?",),
-    "consignee": (r"consignee",),
+    "shipper": (r"shipper(?:/exporter| \(principal or seller\))?",),
+    "consignee": (r"consignee(?: \(non-negotiable\))?",),
     "notify_party": (r"notify party", r"notify"),
     "port_of_loading": (r"port of loading(?: \(pol\))?", r"load port", r"pol"),
     "port_of_discharge": (r"port of discharge", r"discharge port", r"pod"),
     "container_count": (
         r"no\. of containers or packages",
         r"container count",
+        r"total containers",
         r"containers?",
     ),
     "gross_weight_kg": (r"gross weight(?: \(kg\))?", r"gross wt(?: \(kgs\))?", r"g\.w\."),

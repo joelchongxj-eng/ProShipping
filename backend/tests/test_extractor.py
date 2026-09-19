@@ -35,3 +35,18 @@ def test_extracts_seven_fields_from_si_and_bl_text() -> None:
         assert fields.container_count.normalized_value == "1"
         assert fields.gross_weight_kg.normalized_value == "21577"
 
+
+def test_extracts_office_document_label_variants() -> None:
+    text = """BILL OF LADING (DRAFT)
+Shipper (Principal or Seller): APRIL FINE PAPER TRADING | 77 ROBINSON ROAD
+Consignee (Non-Negotiable): AL GURG STATIONERY LLC | P.O. BOX 5069
+Notify: AL GURG STATIONERY LLC | P.O. BOX 5069
+PORT OF LOADING: SINGAPORE
+POD: KARACHI, PAKISTAN
+Total Containers: 12 x 20'FCL
+Gross Wt (kgs): 243,588
+"""
+    fields = extract_shipping_fields(text)
+    assert all(value is not None for _, value in fields)
+    assert fields.container_count.normalized_value == "12"
+

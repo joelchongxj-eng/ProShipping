@@ -101,6 +101,42 @@ async def test_extracts_evidenced_values_and_normalizes_weight_locally():
 
 
 @pytest.mark.asyncio
+async def test_complete_labeled_office_document_uses_deterministic_fields():
+    text = """BILL OF LADING (DRAFT)
+Shipper (Principal or Seller): APRIL FINE PAPER TRADING | 77 ROBINSON ROAD
+Consignee: AL GURG STATIONERY LLC | P.O. BOX 5069
+Notify: AL GURG STATIONERY LLC | P.O. BOX 5069
+PORT OF LOADING: SINGAPORE
+POD: KARACHI, PAKISTAN
+Total Containers: 12 x 20'FCL
+Gross Wt (kgs): 243,588
+"""
+
+    def unexpected_request(request):
+        raise AssertionError("Complete labeled Office document should not call Groq")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(unexpected_request))
+    result = await AIService("test-key", client=client).extract_text(text, "email_055_BL.docx")
+    assert result.document_type == "BL"
+    assert result.fields.shipper.raw_value == "APRIL FINE PAPER TRADING | 77 ROBINSON ROAD"
+    assert result.fields.container_count.normalized_value == "12"
+    assert result.fields.gross_weight_kg.normalized_value == "243588"
+    assert all(value.page is None for _, value in result.fields)
+
+
+@pytest.mark.asyncio
+async def test_partial_office_document_keeps_labeled_values_over_model_guess():
+    text = "BILL OF LADING (DRAFT)\nShipper: ACME PAPER\nConsignee: OTHER COMPANY"
+    client = service_reply([{"document_type": "BL", "fields": {
+        "shipper": {"raw_value": "OTHER COMPANY", "evidence": "Consignee: OTHER COMPANY"},
+    }}])
+    result = await AIService("test-key", client=client).extract_text(text, "partial_BL.docx")
+    assert result.fields.shipper.raw_value == "ACME PAPER"
+    assert result.fields.shipper.evidence == "Shipper: ACME PAPER"
+    assert result.fields.consignee.raw_value == "OTHER COMPANY"
+
+
+@pytest.mark.asyncio
 async def test_extracts_flat_groq_fields_when_evidence_is_exact():
     text = "BILL OF LADING INSTRUCTION\nContainer Count: 6 x 40'HC"
     reply = {

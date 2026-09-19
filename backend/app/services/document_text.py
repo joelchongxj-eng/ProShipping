@@ -1,6 +1,7 @@
 """Extract text from supported shipping-document attachments."""
 
 from io import BytesIO
+import re
 from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
 
@@ -31,12 +32,34 @@ def _paragraph_text(paragraph: ElementTree.Element) -> str:
     return "".join(parts).strip()
 
 
+def _docx_lines(root: ElementTree.Element) -> list[str]:
+    lines = []
+    body = root.find(WORD + "body")
+    if body is None:
+        body = root
+    for block in body:
+        if block.tag == WORD + "p":
+            lines.append(_paragraph_text(block))
+        elif block.tag == WORD + "tbl":
+            for row in block.iter(WORD + "tr"):
+                cells = [" | ".join(
+                    part.strip() for paragraph in cell.iter(WORD + "p")
+                    for part in _paragraph_text(paragraph).splitlines() if part.strip()
+                ) for cell in row.findall(WORD + "tc")]
+                if len(cells) == 2 and all(cells):
+                    label = re.sub(r"\s+\([^)]*[\u3400-\u9fff][^)]*\)$", "", cells[0])
+                    lines.append(f"{label}: {cells[1]}")
+                else:
+                    lines.extend(cells)
+    return lines
+
+
 def _office_text(content: bytes, extension: str) -> str:
     try:
         with ZipFile(BytesIO(content)) as archive:
             if extension == ".docx":
                 root = ElementTree.fromstring(archive.read("word/document.xml"))
-                lines = [_paragraph_text(paragraph) for paragraph in root.iter(WORD + "p")]
+                lines = _docx_lines(root)
             else:
                 shared = []
                 if "xl/sharedStrings.xml" in archive.namelist():

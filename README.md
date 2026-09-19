@@ -31,8 +31,9 @@ $env:GROQ_MODEL = "openai/gpt-oss-20b"
 $env:GROQ_VISION_MODEL = "qwen/qwen3.8-27b" # optional; used only for scanned PDFs
 ```
 
-Keep the API key out of Git. AI mode calls Groq for every email and each supported
-comparison attachment, so processing the full dataset consumes free-tier requests
+Keep the API key out of Git. AI mode calls Groq for every email; documents with
+complete labeled Office fields are extracted locally, while other documents
+may require Groq calls. Processing the full dataset still consumes requests
 and tokens. Groq returns HTTP 429 when a rate limit is reached; check your account's
 current limits before running the full inbox.
 Groq is asked for a strict JSON schema; if it rejects JSON generation, the request
@@ -69,6 +70,9 @@ Python code validates the evidence, normalizes values and units, builds
 `ShippingFields`, and decides `MATCH`, `MISMATCH`, or `NEEDS_REVIEW`. The model
 does not choose normalized values or case status. The current provider is Groq;
 the field contract does not depend on the provider.
+For DOCX/XLSX attachments, explicit field labels take precedence over model
+guesses. If all seven fields and document type are present, extraction is fully
+local; otherwise Groq fills the missing fields.
 
 To evaluate a small selected batch from the local competition bundle, run this
 from `backend` after setting `GROQ_API_KEY`:
