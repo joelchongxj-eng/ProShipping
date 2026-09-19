@@ -149,6 +149,23 @@ async def test_separates_notify_party_from_explicit_loading_port_label():
 
 
 @pytest.mark.asyncio
+async def test_notify_party_uses_its_own_labeled_block_not_consignee_address():
+    text = (
+        "BILL OF LADING (DRAFT)\n"
+        "Consignee: VITAL SOLUTIONS PTE. LTD.\n  77 ROBINSON ROAD, SINGAPORE\n"
+        "Notify Party: VITAL SOLUTIONS PTE. LTD.\n"
+        "Port of Loading: NHAVA SHEVA"
+    )
+    wrong = "VITAL SOLUTIONS PTE. LTD.\n  77 ROBINSON ROAD, SINGAPORE"
+    client = service_reply([{"document_type": "BL", "fields": {
+        "notify_party": {"raw_value": wrong, "evidence": "Consignee: " + wrong},
+    }}])
+    result = await AIService("test-key", client=client).extract_text(text, "email_031_BL.txt")
+    assert result.fields.notify_party.raw_value == "VITAL SOLUTIONS PTE. LTD."
+    assert result.fields.notify_party.evidence == "Notify Party: VITAL SOLUTIONS PTE. LTD."
+
+
+@pytest.mark.asyncio
 async def test_removes_field_labels_from_model_values_but_keeps_source_evidence():
     lines = {
         "shipper": "Shipper/Exporter: APRIL FINE PAPER TRADING",

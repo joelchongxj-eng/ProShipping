@@ -98,6 +98,17 @@ def _separate_order_consignee(fields: RawShippingFields, text: str) -> None:
             fields.consignee = RawField(raw_value=consignee.group(1).rstrip(), evidence=consignee.group(0))
 
 
+def _anchor_notify_party(fields: RawShippingFields, text: str) -> None:
+    if fields.notify_party is None:
+        return
+    match = re.search(
+        rf"(?im)^{FIELD_LABELS['notify_party']}[ \t]*:[ \t]*([^\n]*(?:\n[ \t]+[^\n]+)*)",
+        text,
+    )
+    if match and match.group(1).strip():
+        fields.notify_party = RawField(raw_value=match.group(1).strip(), evidence=match.group(0))
+
+
 def _document_type_from_heading(text: str) -> DocumentType | None:
     for line in text.splitlines()[:5]:
         heading = line.strip()
@@ -235,6 +246,7 @@ class AIService:
                 raw = RawDocument.model_validate(payload)
                 _separate_loading_port(raw.fields, text)
                 _separate_order_consignee(raw.fields, text)
+                _anchor_notify_party(raw.fields, text)
                 converted = {}
                 for name, field in raw.fields:
                     if field is None:
