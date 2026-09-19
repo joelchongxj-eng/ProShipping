@@ -1,6 +1,7 @@
 import re
 
-from app.models import ExtractedField, ShippingFields
+from app.models import ExtractedField, ShippingFields, SourceLocation
+from app.services.document_reader import DocumentPage
 from app.services.normalization import (
     normalize_container_count,
     normalize_decimal,
@@ -62,7 +63,25 @@ def _find_line_value(text: str, patterns: tuple[str, ...]) -> tuple[str, str] | 
     return None
 
 
-def _build_field(name: str, raw_value: str, evidence: str) -> ExtractedField:
+def _find_evidence_page(
+    evidence: str,
+    source_pages: tuple[DocumentPage, ...],
+) -> int | None:
+    matching_pages = {
+        page.number
+        for page in source_pages
+        if evidence in (line.strip() for line in page.text.splitlines())
+    }
+    return matching_pages.pop() if len(matching_pages) == 1 else None
+
+
+def _build_field(
+    name: str,
+    raw_value: str,
+    evidence: str,
+    source_filename: str | None = None,
+    source_pages: tuple[DocumentPage, ...] = (),
+) -> ExtractedField:
     unit = None
     if name == "gross_weight_kg":
         weight = weight_to_kg(raw_value)
@@ -81,12 +100,35 @@ def _build_field(name: str, raw_value: str, evidence: str) -> ExtractedField:
         confidence=0.99,
         page=1,
         evidence=evidence,
+        source=(
+            SourceLocation(
+                filename=source_filename,
+                page=_find_evidence_page(evidence, source_pages),
+                evidence_text=evidence,
+            )
+            if source_filename is not None
+            else None
+        ),
     )
 
 
-def extract_shipping_fields(text: str) -> ShippingFields:
+def extract_shipping_fields(
+    text: str,
+    *,
+    source_filename: str | None = None,
+    source_pages: tuple[DocumentPage, ...] = (),
+) -> ShippingFields:
     extracted: dict[str, ExtractedField | None] = {}
     for name, patterns in FIELD_PATTERNS.items():
         found = _find_line_value(text, patterns)
-        extracted[name] = _build_field(name, *found) if found else None
+        extracted[name] = (
+            _build_field(
+                name,
+                *found,
+                source_filename=source_filename,
+                source_pages=source_pages,
+            )
+            if found
+            else None
+        )
     return ShippingFields(**extracted)

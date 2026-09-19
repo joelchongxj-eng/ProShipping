@@ -13,7 +13,7 @@ from app.models import (
 )
 from app.services.classifier import classify_email
 from app.services.comparison import compare_documents
-from app.services.document_reader import DocumentReadError, document_to_text
+from app.services.document_reader import DocumentReadError, read_document
 from app.services.text_extractor import extract_shipping_fields
 
 
@@ -75,9 +75,9 @@ class CaseProcessor:
                     self.inbox.get_attachment(si_path),
                     self.inbox.get_attachment(bl_path),
                 )
-                si_text = document_to_text(si_path, si_content)
-                bl_text = document_to_text(bl_path, bl_content)
-                if _is_wrong_document_type(si_text) or _is_wrong_document_type(bl_text):
+                si_document = read_document(si_path, si_content)
+                bl_document = read_document(bl_path, bl_content)
+                if _is_wrong_document_type(si_document.text) or _is_wrong_document_type(bl_document.text):
                     return CaseRecord(
                         email=email,
                         category=category,
@@ -86,8 +86,16 @@ class CaseProcessor:
                         bl_attachment=bl_path,
                         review_reason=ReviewReason.WRONG_DOC_TYPE,
                     )
-                si_fields = extract_shipping_fields(si_text)
-                bl_fields = extract_shipping_fields(bl_text)
+                si_fields = extract_shipping_fields(
+                    si_document.text,
+                    source_filename=si_path,
+                    source_pages=si_document.pages,
+                )
+                bl_fields = extract_shipping_fields(
+                    bl_document.text,
+                    source_filename=bl_path,
+                    source_pages=bl_document.pages,
+                )
             except (DocumentReadError, UnicodeDecodeError, OSError):
                 return CaseRecord(
                     email=email,

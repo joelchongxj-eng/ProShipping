@@ -1,5 +1,6 @@
 import pytest
 
+from app.models import ExtractedField, SourceLocation
 from app.services.text_extractor import extract_shipping_fields
 
 
@@ -22,6 +23,29 @@ POD: CALLAO, PERU (PECLL)
 Container Count: 1 x 40'HC
 Gross Wt (kgs): 21,577 KG
 """
+
+
+def test_source_location_schema_is_optional_for_backward_compatibility() -> None:
+    field = ExtractedField(
+        field="shipper",
+        raw_value="ACME SHIPPING LTD",
+        normalized_value="acme shipping ltd",
+        confidence=0.99,
+        page=1,
+        evidence="Shipper: ACME SHIPPING LTD",
+    )
+
+    assert field.source is None
+    source = SourceLocation(
+        filename="attachments/email_001_SI.txt",
+        page=None,
+        evidence_text="Shipper: ACME SHIPPING LTD",
+    )
+    assert source.model_dump() == {
+        "filename": "attachments/email_001_SI.txt",
+        "page": None,
+        "evidence_text": "Shipper: ACME SHIPPING LTD",
+    }
 
 
 def test_extracts_seven_fields_from_si_and_bl_text() -> None:

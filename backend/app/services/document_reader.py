@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import PurePosixPath
 from zipfile import BadZipFile
@@ -12,6 +13,18 @@ from openpyxl.utils.exceptions import InvalidFileException
 
 class DocumentReadError(Exception):
     """The attachment format is unsupported or its content cannot be read."""
+
+
+@dataclass(frozen=True)
+class DocumentPage:
+    number: int
+    text: str
+
+
+@dataclass(frozen=True)
+class DocumentContent:
+    text: str
+    pages: tuple[DocumentPage, ...] = ()
 
 
 CHINESE_PRESENTATION_SUFFIX = re.compile(
@@ -102,14 +115,18 @@ def _pdf_page_to_text(page: pymupdf.Page) -> str:
     return "\n".join(part for part in (raw_text, *canonical_rows) if part)
 
 
-def _pdf_to_text(content: bytes) -> str:
+def _pdf_to_document(content: bytes) -> DocumentContent:
     try:
         document = pymupdf.open(stream=content, filetype="pdf")
     except (pymupdf.FileDataError, pymupdf.EmptyFileError, OSError, ValueError) as exc:
         raise DocumentReadError("Unable to read PDF attachment.") from exc
 
     try:
-        text = "\n".join(_pdf_page_to_text(page) for page in document).strip()
+        pages = tuple(
+            DocumentPage(number=index, text=_pdf_page_to_text(page))
+            for index, page in enumerate(document, start=1)
+        )
+        text = "\n".join(page.text for page in pages).strip()
     except (RuntimeError, ValueError) as exc:
         raise DocumentReadError("Unable to read PDF attachment.") from exc
     finally:
@@ -117,17 +134,21 @@ def _pdf_to_text(content: bytes) -> str:
 
     if not text:
         raise DocumentReadError("PDF attachment contains no extractable text.")
-    return text
+    return DocumentContent(text=text, pages=pages)
+
+
+def read_document(filename: str, content: bytes) -> DocumentContent:
+    suffix = PurePosixPath(filename).suffix.casefold()
+    if suffix == ".txt":
+        return DocumentContent(text=content.decode("utf-8-sig"))
+    if suffix == ".xlsx":
+        return DocumentContent(text=_xlsx_to_text(content))
+    if suffix == ".docx":
+        return DocumentContent(text=_docx_to_text(content))
+    if suffix == ".pdf":
+        return _pdf_to_document(content)
+    raise DocumentReadError(f"Unsupported document format: {suffix or '<none>'}")
 
 
 def document_to_text(filename: str, content: bytes) -> str:
-    suffix = PurePosixPath(filename).suffix.casefold()
-    if suffix == ".txt":
-        return content.decode("utf-8-sig")
-    if suffix == ".xlsx":
-        return _xlsx_to_text(content)
-    if suffix == ".docx":
-        return _docx_to_text(content)
-    if suffix == ".pdf":
-        return _pdf_to_text(content)
-    raise DocumentReadError(f"Unsupported document format: {suffix or '<none>'}")
+    return read_document(filename, content).text

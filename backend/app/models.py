@@ -48,6 +48,12 @@ class EmailRecord(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class SourceLocation(BaseModel):
+    filename: str
+    page: int | None = None
+    evidence_text: str
+
+
 class ExtractedField(BaseModel):
     field: str
     raw_value: str
@@ -56,6 +62,7 @@ class ExtractedField(BaseModel):
     confidence: float = Field(ge=0, le=1)
     page: int | None = None
     evidence: str
+    source: SourceLocation | None = None
 
 
 class ShippingFields(BaseModel):
@@ -99,4 +106,3 @@ class SubmissionEntry(BaseModel):
     review_reason: ReviewReason | None = None
     has_defect: bool
     defect_fields: list[str] = Field(default_factory=list)
-

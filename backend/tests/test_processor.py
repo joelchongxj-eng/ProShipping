@@ -5,7 +5,7 @@ import pytest
 from docx import Document
 from openpyxl import Workbook
 
-from app.models import CaseStatus, EmailCategory, EmailRecord
+from app.models import CaseStatus, EmailCategory, EmailRecord, ShippingFields
 from app.services.document_reader import document_to_text
 from app.services.processor import CaseProcessor
 from app.services.text_extractor import extract_shipping_fields
@@ -322,6 +322,98 @@ async def test_processor_keeps_txt_extraction_behavior_unchanged() -> None:
     assert case.si_fields is not None
     assert case.bl_fields is not None
     assert len(case.comparison) == 7
+
+
+def assert_source_metadata(
+    fields: ShippingFields,
+    filename: str,
+    page: int | None,
+) -> None:
+    for _, field in fields:
+        if field is None:
+            continue
+        assert field.source is not None
+        assert field.source.filename == filename
+        assert field.source.page == page
+        assert field.source.evidence_text == field.evidence
+
+
+async def test_processor_populates_txt_source_metadata_without_changing_legacy_fields() -> None:
+    inbox = FakeInbox()
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.si_fields is not None
+    assert_source_metadata(
+        case.si_fields,
+        "attachments/email_001_SI.txt",
+        page=None,
+    )
+    assert case.si_fields.shipper is not None
+    assert case.si_fields.shipper.page == 1
+    assert case.si_fields.shipper.evidence == (
+        "Shipper/Exporter: APRIL FAR EAST (M) SDN BHD"
+    )
+
+
+async def test_processor_populates_xlsx_and_docx_source_metadata() -> None:
+    inbox = make_xlsx_docx_inbox()
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.si_fields is not None
+    assert case.bl_fields is not None
+    assert_source_metadata(
+        case.si_fields,
+        "attachments/email_xlsx_SI.xlsx",
+        page=None,
+    )
+    assert_source_metadata(
+        case.bl_fields,
+        "attachments/email_xlsx_BL.docx",
+        page=None,
+    )
+
+
+async def test_processor_maps_pdf_evidence_to_one_based_page_numbers() -> None:
+    content = make_pdf((PDF_ROWS[:4], PDF_ROWS[4:]))
+    inbox = AttachmentInbox(
+        {
+            "attachments/email_pdf_SI.pdf": content,
+            "attachments/email_pdf_BL.pdf": content,
+        }
+    )
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.si_fields is not None
+    assert case.si_fields.shipper is not None
+    assert case.si_fields.gross_weight_kg is not None
+    assert case.si_fields.shipper.source is not None
+    assert case.si_fields.gross_weight_kg.source is not None
+    assert case.si_fields.shipper.source.page == 1
+    assert case.si_fields.gross_weight_kg.source.page == 2
+    assert case.si_fields.shipper.source.filename == "attachments/email_pdf_SI.pdf"
+    assert case.si_fields.gross_weight_kg.source.evidence_text == (
+        "Gross Weight (KG): 21,577 KG"
+    )
+
+
+async def test_processor_does_not_guess_pdf_page_when_evidence_is_duplicated() -> None:
+    content = make_pdf((PDF_ROWS, (PDF_ROWS[0],)))
+    inbox = AttachmentInbox(
+        {
+            "attachments/email_pdf_SI.pdf": content,
+            "attachments/email_pdf_BL.pdf": content,
+        }
+    )
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.si_fields is not None
+    assert case.si_fields.shipper is not None
+    assert case.si_fields.shipper.source is not None
+    assert case.si_fields.shipper.source.page is None
 
 
 async def test_processor_marks_scanned_or_unreadable_pdf_for_review() -> None:
