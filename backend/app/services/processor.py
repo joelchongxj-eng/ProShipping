@@ -13,6 +13,7 @@ from app.models import (
 )
 from app.services.classifier import classify_email
 from app.services.comparison import compare_documents
+from app.services.document_reader import DocumentReadError, document_to_text
 from app.services.text_extractor import extract_shipping_fields
 
 
@@ -50,24 +51,14 @@ class CaseProcessor:
                     bl_attachment=bl_path,
                     review_reason=ReviewReason.MISSING_ATTACHMENT,
                 )
-            if not si_path.casefold().endswith(".txt") or not bl_path.casefold().endswith(".txt"):
-                return CaseRecord(
-                    email=email,
-                    category=category,
-                    status=CaseStatus.NEEDS_REVIEW,
-                    si_attachment=si_path,
-                    bl_attachment=bl_path,
-                    review_reason=ReviewReason.UNREADABLE,
-                )
-
             try:
-                si_text, bl_text = await asyncio.gather(
+                si_content, bl_content = await asyncio.gather(
                     self.inbox.get_attachment(si_path),
                     self.inbox.get_attachment(bl_path),
                 )
-                si_fields = extract_shipping_fields(si_text.decode("utf-8-sig"))
-                bl_fields = extract_shipping_fields(bl_text.decode("utf-8-sig"))
-            except (UnicodeDecodeError, OSError):
+                si_fields = extract_shipping_fields(document_to_text(si_path, si_content))
+                bl_fields = extract_shipping_fields(document_to_text(bl_path, bl_content))
+            except (DocumentReadError, UnicodeDecodeError, OSError):
                 return CaseRecord(
                     email=email,
                     category=category,
@@ -92,4 +83,3 @@ class CaseProcessor:
                 comparison=result.fields,
                 review_reason=review_reason,
             )
-

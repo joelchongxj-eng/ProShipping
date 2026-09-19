@@ -1,3 +1,7 @@
+from io import BytesIO
+
+from openpyxl import Workbook
+
 from app.models import CaseStatus, EmailCategory, EmailRecord
 from app.services.processor import CaseProcessor
 
@@ -21,6 +25,79 @@ class FakeInbox:
         return SI_TEXT.encode() if "_SI." in path else BL_TEXT.encode()
 
 
+class AttachmentInbox:
+    def __init__(self, attachments: dict[str, bytes]) -> None:
+        self.attachments = attachments
+        self.email = EmailRecord(
+            email_id="email_xlsx",
+            **{"from": "shipping@example.com"},
+            subject="Please confirm SI and draft BL",
+            body="Attached for checking.",
+            attachments=list(attachments),
+        )
+
+    async def list_emails(self) -> list[EmailRecord]:
+        return [self.email]
+
+    async def get_attachment(self, path: str) -> bytes:
+        return self.attachments[path]
+
+
+def make_xlsx(labels: tuple[str, ...]) -> bytes:
+    workbook = Workbook()
+    worksheet = workbook.active
+    values: tuple[str | int, ...] = (
+        "APRIL FAR EAST (M) SDN BHD",
+        "MOORIM SP CO., LTD",
+        "UAB NOVAKOPA",
+        "PORT KLANG, MALAYSIA",
+        "CALLAO, PERU",
+        3,
+        21577,
+    )
+    for row, (label, value) in enumerate(zip(labels, values, strict=True), start=4):
+        worksheet.cell(row=row, column=1, value=label)
+        worksheet.cell(row=row, column=2, value=value)
+    content = BytesIO()
+    workbook.save(content)
+    workbook.close()
+    return content.getvalue()
+
+
+SI_XLSX = make_xlsx(
+    (
+        "Shipper/Exporter",
+        "Consignee (Non-Negotiable)",
+        "Notify Party",
+        "Port of Loading",
+        "Port of Discharge",
+        "No. of Containers",
+        "Gross Weight (KG)",
+    )
+)
+
+BL_XLSX = make_xlsx(
+    (
+        "Shipper",
+        "Consignee",
+        "Notify",
+        "POL",
+        "POD",
+        "Container Count",
+        "Gross Wt (KGS)",
+    )
+)
+
+
+def make_xlsx_inbox() -> AttachmentInbox:
+    return AttachmentInbox(
+        {
+            "attachments/email_xlsx_SI.xlsx": SI_XLSX,
+            "attachments/email_xlsx_BL.xlsx": BL_XLSX,
+        }
+    )
+
+
 async def test_processor_builds_a_complete_matching_case() -> None:
     processor = CaseProcessor(FakeInbox())
     cases = await processor.process_all()
@@ -30,3 +107,48 @@ async def test_processor_builds_a_complete_matching_case() -> None:
     assert case.status is CaseStatus.MATCH
     assert len(case.comparison) == 7
 
+
+async def test_processor_extracts_all_seven_fields_from_xlsx_si() -> None:
+    inbox = make_xlsx_inbox()
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.status is CaseStatus.MATCH
+    assert case.si_fields is not None
+    assert all(value is not None for _, value in case.si_fields)
+    assert case.si_fields.container_count.normalized_value == "3"
+    assert case.si_fields.gross_weight_kg.normalized_value == "21577"
+
+
+async def test_processor_extracts_all_seven_fields_from_xlsx_bl() -> None:
+    inbox = make_xlsx_inbox()
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.status is CaseStatus.MATCH
+    assert case.bl_fields is not None
+    assert all(value is not None for _, value in case.bl_fields)
+    assert case.bl_fields.container_count.normalized_value == "3"
+    assert case.bl_fields.gross_weight_kg.normalized_value == "21577"
+
+
+async def test_processor_keeps_txt_extraction_behavior_unchanged() -> None:
+    inbox = FakeInbox()
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.status is CaseStatus.MATCH
+    assert case.si_fields is not None
+    assert case.bl_fields is not None
+    assert len(case.comparison) == 7
+
+
+async def test_processor_marks_unsupported_document_format_for_review() -> None:
+    inbox = AttachmentInbox(
+        {
+            "attachments/email_xlsx_SI.xlsx": SI_XLSX,
+            "attachments/email_xlsx_BL.pdf": b"not a supported document",
+        }
+    )
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.status is CaseStatus.NEEDS_REVIEW
+    assert case.review_reason.value == "unreadable"
