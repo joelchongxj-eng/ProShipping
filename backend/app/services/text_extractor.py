@@ -27,7 +27,12 @@ FIELD_PATTERNS: dict[str, tuple[str, ...]] = {
         r"container count",
         r"containers?",
     ),
-    "gross_weight_kg": (r"gross weight(?: \(kg\))?", r"gross wt(?: \(kgs\))?", r"g\.w\."),
+    "gross_weight_kg": (
+        r"gross weight(?: \(kg\))?",
+        r"gross weight毛重\(kgs\)",
+        r"gross wt(?: \(kgs\))?",
+        r"g\.w\.",
+    ),
 }
 
 

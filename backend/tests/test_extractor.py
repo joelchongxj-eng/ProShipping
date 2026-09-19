@@ -74,3 +74,22 @@ def test_extracts_port_of_discharge_from_supported_labels(label: str) -> None:
     assert fields.port_of_discharge is not None
     assert fields.port_of_discharge.raw_value == "CALLAO, PERU"
     assert fields.port_of_discharge.normalized_value == "callao peru"
+
+
+@pytest.mark.parametrize(
+    "label",
+    (
+        "Gross Weight毛重(KGS)",
+        "Gross Weight",
+        "Gross Weight (KG)",
+        "Gross Wt (KGS)",
+        "G.W.",
+    ),
+)
+def test_extracts_gross_weight_from_supported_labels(label: str) -> None:
+    fields = extract_shipping_fields(f"{label}: 21,577 KG")
+
+    assert fields.gross_weight_kg is not None
+    assert fields.gross_weight_kg.raw_value == "21,577 KG"
+    assert fields.gross_weight_kg.normalized_value == "21577"
+    assert fields.gross_weight_kg.unit == "kg"
