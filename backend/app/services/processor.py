@@ -1,0 +1,95 @@
+import asyncio
+import re
+from pathlib import PurePosixPath
+
+from app.clients.inbox import InboxProtocol
+from app.models import (
+    CaseRecord,
+    CaseStatus,
+    EmailCategory,
+    EmailRecord,
+    FieldStatus,
+    ReviewReason,
+)
+from app.services.classifier import classify_email
+from app.services.comparison import compare_documents
+from app.services.text_extractor import extract_shipping_fields
+
+
+def _find_attachment(attachments: list[str], token: str) -> str | None:
+    for path in attachments:
+        stem = PurePosixPath(path).stem
+        if re.search(rf"(?:^|[_\-\s]){token}(?:$|[_\-\s])", stem, flags=re.IGNORECASE):
+            return path
+    return None
+
+
+class CaseProcessor:
+    def __init__(self, inbox: InboxProtocol, concurrency: int = 12) -> None:
+        self.inbox = inbox
+        self._semaphore = asyncio.Semaphore(concurrency)
+
+    async def process_all(self) -> list[CaseRecord]:
+        emails = await self.inbox.list_emails()
+        return list(await asyncio.gather(*(self.process_email(email) for email in emails)))
+
+    async def process_email(self, email: EmailRecord) -> CaseRecord:
+        async with self._semaphore:
+            category = classify_email(email)
+            if category is not EmailCategory.BL_COMPARISON:
+                return CaseRecord(email=email, category=category, status=CaseStatus.MATCH)
+
+            si_path = _find_attachment(email.attachments, "SI")
+            bl_path = _find_attachment(email.attachments, "BL")
+            if si_path is None or bl_path is None:
+                return CaseRecord(
+                    email=email,
+                    category=category,
+                    status=CaseStatus.NEEDS_REVIEW,
+                    si_attachment=si_path,
+                    bl_attachment=bl_path,
+                    review_reason=ReviewReason.MISSING_ATTACHMENT,
+                )
+            if not si_path.casefold().endswith(".txt") or not bl_path.casefold().endswith(".txt"):
+                return CaseRecord(
+                    email=email,
+                    category=category,
+                    status=CaseStatus.NEEDS_REVIEW,
+                    si_attachment=si_path,
+                    bl_attachment=bl_path,
+                    review_reason=ReviewReason.UNREADABLE,
+                )
+
+            try:
+                si_text, bl_text = await asyncio.gather(
+                    self.inbox.get_attachment(si_path),
+                    self.inbox.get_attachment(bl_path),
+                )
+                si_fields = extract_shipping_fields(si_text.decode("utf-8-sig"))
+                bl_fields = extract_shipping_fields(bl_text.decode("utf-8-sig"))
+            except (UnicodeDecodeError, OSError):
+                return CaseRecord(
+                    email=email,
+                    category=category,
+                    status=CaseStatus.NEEDS_REVIEW,
+                    si_attachment=si_path,
+                    bl_attachment=bl_path,
+                    review_reason=ReviewReason.UNREADABLE,
+                )
+
+            result = compare_documents(si_fields, bl_fields)
+            review_reason = None
+            if any(item.status is FieldStatus.MISSING for item in result.fields):
+                review_reason = ReviewReason.MISSING_VALUE
+            return CaseRecord(
+                email=email,
+                category=category,
+                status=result.status,
+                si_attachment=si_path,
+                bl_attachment=bl_path,
+                si_fields=si_fields,
+                bl_fields=bl_fields,
+                comparison=result.fields,
+                review_reason=review_reason,
+            )
+

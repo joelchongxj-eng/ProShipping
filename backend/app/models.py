@@ -1,0 +1,102 @@
+from enum import StrEnum
+
+from pydantic import BaseModel, Field
+
+
+class EmailCategory(StrEnum):
+    BL_COMPARISON = "BL_COMPARISON"
+    SI_REQUEST = "SI_REQUEST"
+    INVOICE_QUERY = "INVOICE_QUERY"
+    GENERAL = "GENERAL"
+    SPAM = "SPAM"
+
+
+class FieldStatus(StrEnum):
+    MATCH = "match"
+    MISMATCH = "mismatch"
+    NEEDS_REVIEW = "needs_review"
+    MISSING = "missing"
+
+
+class CaseStatus(StrEnum):
+    MATCH = "MATCH"
+    MISMATCH = "MISMATCH"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    FAILED = "FAILED"
+
+
+class SubmissionStatus(StrEnum):
+    OK = "OK"
+    MISMATCH = "MISMATCH"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+
+
+class ReviewReason(StrEnum):
+    WRONG_DOC_TYPE = "wrong_doc_type"
+    MISSING_ATTACHMENT = "missing_attachment"
+    UNREADABLE = "unreadable"
+    MISSING_VALUE = "missing_value"
+
+
+class EmailRecord(BaseModel):
+    email_id: str
+    sender: str = Field(alias="from")
+    subject: str
+    body: str
+    attachments: list[str] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True}
+
+
+class ExtractedField(BaseModel):
+    field: str
+    raw_value: str
+    normalized_value: str
+    unit: str | None = None
+    confidence: float = Field(ge=0, le=1)
+    page: int | None = None
+    evidence: str
+
+
+class ShippingFields(BaseModel):
+    shipper: ExtractedField | None = None
+    consignee: ExtractedField | None = None
+    notify_party: ExtractedField | None = None
+    port_of_loading: ExtractedField | None = None
+    port_of_discharge: ExtractedField | None = None
+    container_count: ExtractedField | None = None
+    gross_weight_kg: ExtractedField | None = None
+
+
+class FieldComparison(BaseModel):
+    field: str
+    status: FieldStatus
+    si: ExtractedField | None
+    bl: ExtractedField | None
+    reason: str
+
+
+class ComparisonResult(BaseModel):
+    status: CaseStatus
+    fields: list[FieldComparison]
+
+
+class CaseRecord(BaseModel):
+    email: EmailRecord
+    category: EmailCategory
+    status: CaseStatus
+    si_attachment: str | None = None
+    bl_attachment: str | None = None
+    si_fields: ShippingFields | None = None
+    bl_fields: ShippingFields | None = None
+    comparison: list[FieldComparison] = Field(default_factory=list)
+    review_reason: ReviewReason | None = None
+
+
+class SubmissionEntry(BaseModel):
+    category: EmailCategory
+    status: SubmissionStatus
+    review_reason: ReviewReason | None = None
+    has_defect: bool
+    defect_fields: list[str] = Field(default_factory=list)
+

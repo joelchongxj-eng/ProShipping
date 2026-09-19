@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.egg-info/
+*.db
+.env
+data/
+data_v2/
+sdoc-hackathon-docker.zip
