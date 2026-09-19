@@ -61,6 +61,28 @@ overall status. For scanned PDFs, it first sends embedded page images to Groq vi
 otherwise it sends extracted text. It does not write
 the API key or a submission file.
 
+The model extracts the seven named fields as raw values with source evidence:
+`shipper`, `consignee`, `notify_party`, `port_of_loading`,
+`port_of_discharge`, `container_count`, and `gross_weight_kg`. It also identifies
+the document type so the backend can reject an SI supplied in place of a BL.
+Python code validates the evidence, normalizes values and units, builds
+`ShippingFields`, and decides `MATCH`, `MISMATCH`, or `NEEDS_REVIEW`. The model
+does not choose normalized values or case status. The current provider is Groq;
+the field contract does not depend on the provider.
+
+To evaluate a small selected batch from the local competition bundle, run this
+from `backend` after setting `GROQ_API_KEY`:
+
+```powershell
+& .\.venv\Scripts\python.exe -m app.evaluate_batch "<path-to-sdoc-hackathon-bundle>" 001 091
+```
+
+Only the IDs listed on the command line are sent to Groq. The JSON report
+includes each category, status, mismatched fields, and fields needing review.
+Start with a few IDs because each comparison makes multiple API calls. Brief
+Groq token-per-minute limits are retried; a case still becomes `FAILED` if the
+limit persists after the bounded retries.
+
 ## Run locally
 
 First start the competition data service on port 8080 from its separate local directory:

@@ -34,14 +34,18 @@ def service_reply(payloads):
 
 
 @pytest.mark.asyncio
-async def test_retries_groq_json_validation_failure_without_response_format():
+@pytest.mark.parametrize("message", [
+    "Failed to validate JSON. Please adjust your prompt.",
+    "Failed to generate JSON. Please adjust your prompt.",
+])
+async def test_retries_groq_json_validation_failure_without_response_format(message):
     requests = []
 
     def handler(request):
         payload = json.loads(request.content)
         requests.append(payload)
         if len(requests) == 1:
-            return httpx.Response(400, json={"error": {"message": "Failed to validate JSON. Please adjust your prompt."}})
+            return httpx.Response(400, json={"error": {"message": message}})
         return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({
             "category": "GENERAL", "reason": "Greeting", "uncertain": False,
         })}}]})
@@ -52,6 +56,25 @@ async def test_retries_groq_json_validation_failure_without_response_format():
     assert result.category is EmailCategory.GENERAL
     assert requests[0]["response_format"]["type"] == "json_schema"
     assert "response_format" not in requests[1]
+
+
+@pytest.mark.asyncio
+async def test_retries_groq_short_rate_limit():
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if len(requests) == 1:
+            return httpx.Response(429, json={"error": {"message": "Please try again in 0.001s."}})
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({
+            "category": "GENERAL", "reason": "Greeting", "uncertain": False,
+        })}}]})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    email = EmailRecord(email_id="demo", **{"from": "demo@example.com"}, subject="Hello", body="", attachments=[])
+    result = await AIService("test-key", client=client).classify(email)
+    assert result.category is EmailCategory.GENERAL
+    assert len(requests) == 2
 
 
 @pytest.mark.asyncio

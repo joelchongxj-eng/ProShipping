@@ -125,11 +125,24 @@ class AIService:
                     response = await client.post(url, headers={"Authorization": f"Bearer {self.api_key}"}, json=payload)
             else:
                 response = await self.client.post(url, headers={"Authorization": f"Bearer {self.api_key}"}, json=payload)
-            if response.status_code == 400 and "Failed to validate JSON" in response.text and "response_format" in payload:
+            if response.status_code == 400 and any(
+                message in response.text for message in ("Failed to validate JSON", "Failed to generate JSON")
+            ) and "response_format" in payload:
                 payload.pop("response_format")
                 continue
             if response.status_code == 503 and attempt < 2:
                 await asyncio.sleep(2**attempt + random.uniform(0, 0.25))
+                continue
+            if response.status_code == 429 and attempt < 2:
+                delay = response.headers.get("retry-after")
+                if delay is None:
+                    match = re.search(r"try again in ([\d.]+)s", response.text, re.IGNORECASE)
+                    delay = match.group(1) if match else str(2**attempt)
+                try:
+                    seconds = float(delay)
+                except ValueError:
+                    seconds = float(2**attempt)
+                await asyncio.sleep(min(30, max(0, seconds) + 0.25))
                 continue
             break
         if response.is_error:
