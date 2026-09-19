@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ShippingField, VerificationCase } from "@/types/verification";
 import { StatusBadge } from "@/components/status-badge";
+import { getReviewReasonDisplay } from "@/lib/review-reason";
 import { ExtractedValueDisplay } from "./extracted-value";
 import { EvidencePanel } from "./evidence-panel";
 
@@ -24,7 +25,12 @@ export function CaseComparison({ item, mockMode = false }: { item: VerificationC
   const fieldLabel = (field: string) => fields.find(({ key }) => key === field)?.label ?? field;
 
   if (item.category !== "BL_COMPARISON") return <p className="text-sm text-slate-600">This email does not use the BL comparison workflow.</p>;
-  if (available.length === 0) return <p className="text-sm text-slate-600">No comparison results supplied by the backend.</p>;
+  if (available.length === 0) {
+    const explanation = item.status === "NEEDS_REVIEW"
+      ? getReviewReasonDisplay(item.review_reason).message
+      : "Comparison results are not available for this case.";
+    return <p className="rounded-md border border-slate-200 bg-white p-4 text-sm text-slate-700">{explanation}</p>;
+  }
   return (
     <div className="space-y-4">
       <section aria-labelledby="comparison-title">

@@ -29,7 +29,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
       ) : (
         <>
           <p className="text-sm text-slate-600">{cases.length} matching case{cases.length === 1 ? "" : "s"} · {isMockMode ? "Demo data" : "Backend data"}</p>
-          {filter === "needs_review" && <p className="text-xs text-slate-500">Cases with missing fields are listed separately under <Link href="/cases?field_status=missing" className="underline">Missing Information</Link>.</p>}
+          {filter === "needs_review" && <p className="text-xs text-slate-500">All cases flagged by the backend for human review are shown here. <Link href="/cases?field_status=missing" className="underline">Missing Information</Link> is a focused view of missing attachments and values.</p>}
           <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
             {cases.length > 0 ? <ul aria-label="Matching cases" className="divide-y divide-slate-200">{cases.map((item) => <CaseRow key={item.email.email_id} item={item} />)}</ul> : <p className="px-4 py-4 text-sm text-slate-500">No cases</p>}
           </div>

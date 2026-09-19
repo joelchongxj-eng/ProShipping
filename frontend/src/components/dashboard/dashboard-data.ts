@@ -33,10 +33,10 @@ export function groupCases(cases: VerificationCase[]): Record<BoardGroup, Verifi
   return {
     matched: comparisons.filter((item) => item.status === "MATCH"),
     mismatch: comparisons.filter((item) => item.status === "MISMATCH"),
-    needs_review: comparisons.filter((item) => item.status === "NEEDS_REVIEW" && getFieldCounts(item).missing === 0),
-    // Any missing required field is discoverable here. A case with another
-    // overall status can also remain in its status section; status is not rewritten.
-    missing_information: comparisons.filter((item) => getFieldCounts(item).missing > 0),
+    needs_review: comparisons.filter((item) => item.status === "NEEDS_REVIEW"),
+    missing_information: comparisons.filter(
+      (item) => item.status === "NEEDS_REVIEW" && (item.review_reason === "missing_attachment" || item.review_reason === "missing_value"),
+    ),
     failed: comparisons.filter((item) => item.status === "FAILED"),
   };
 }
