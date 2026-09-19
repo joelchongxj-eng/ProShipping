@@ -3,6 +3,7 @@ from io import BytesIO
 from pathlib import PurePosixPath
 from zipfile import BadZipFile
 
+import pymupdf
 from docx import Document
 from docx.opc.exceptions import PackageNotFoundError
 from openpyxl import load_workbook
@@ -71,6 +72,54 @@ def _docx_to_text(content: bytes) -> str:
     return "\n".join(lines)
 
 
+def _pdf_page_to_text(page: pymupdf.Page) -> str:
+    raw_text = page.get_text("text", sort=True).strip()
+    positioned_lines: list[tuple[float, float, str]] = []
+    for block in page.get_text("dict")["blocks"]:
+        for line in block.get("lines", []):
+            for span in line["spans"]:
+                text = span["text"].strip()
+                if text:
+                    x0, y0, _, _ = span["bbox"]
+                    positioned_lines.append((y0, x0, text))
+
+    rows: list[list[tuple[float, str]]] = []
+    for y0, x0, text in sorted(positioned_lines):
+        if not rows or abs(y0 - rows[-1][0][0]) > 1:
+            rows.append([(y0, x0, text)])
+        else:
+            rows[-1].append((y0, x0, text))
+
+    canonical_rows: list[str] = []
+    for row in rows:
+        components = sorted((x0, text) for _, x0, text in row)
+        if len(components) < 2:
+            continue
+        label = components[0][1]
+        value = " ".join(text for _, text in components[1:])
+        canonical_rows.append(f"{label}: {value}")
+
+    return "\n".join(part for part in (raw_text, *canonical_rows) if part)
+
+
+def _pdf_to_text(content: bytes) -> str:
+    try:
+        document = pymupdf.open(stream=content, filetype="pdf")
+    except (pymupdf.FileDataError, pymupdf.EmptyFileError, OSError, ValueError) as exc:
+        raise DocumentReadError("Unable to read PDF attachment.") from exc
+
+    try:
+        text = "\n".join(_pdf_page_to_text(page) for page in document).strip()
+    except (RuntimeError, ValueError) as exc:
+        raise DocumentReadError("Unable to read PDF attachment.") from exc
+    finally:
+        document.close()
+
+    if not text:
+        raise DocumentReadError("PDF attachment contains no extractable text.")
+    return text
+
+
 def document_to_text(filename: str, content: bytes) -> str:
     suffix = PurePosixPath(filename).suffix.casefold()
     if suffix == ".txt":
@@ -79,4 +128,6 @@ def document_to_text(filename: str, content: bytes) -> str:
         return _xlsx_to_text(content)
     if suffix == ".docx":
         return _docx_to_text(content)
+    if suffix == ".pdf":
+        return _pdf_to_text(content)
     raise DocumentReadError(f"Unsupported document format: {suffix or '<none>'}")

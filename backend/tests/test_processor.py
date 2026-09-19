@@ -1,5 +1,6 @@
 from io import BytesIO
 
+import pymupdf
 from docx import Document
 from openpyxl import Workbook
 
@@ -131,6 +132,36 @@ def make_docx(values: tuple[str | tuple[str, ...], ...] = DOCX_VALUES) -> bytes:
 BL_DOCX = make_docx()
 
 
+PDF_ROWS: tuple[tuple[str, str], ...] = (
+    ("Shipper", "APRIL FAR EAST (M) SDN BHD"),
+    ("Consignee", "MOORIM SP CO., LTD"),
+    ("Notify Party", "UAB NOVAKOPA"),
+    ("Port of Loading", "PORT KLANG, MALAYSIA"),
+    ("Port of Discharge", "CALLAO, PERU"),
+    ("Container Count", "3 x 40'HC"),
+    ("Gross Weight (KG)", "21,577 KG"),
+)
+
+
+def make_pdf(
+    pages: tuple[tuple[tuple[str, str], ...], ...] = (PDF_ROWS,),
+) -> bytes:
+    document = pymupdf.open()
+    for rows in pages:
+        page = document.new_page()
+        y = 72
+        for label, value in rows:
+            page.insert_text((56, y), label)
+            page.insert_text((220, y), value)
+            y += 24
+    content = document.tobytes()
+    document.close()
+    return content
+
+
+PDF_CONTENT = make_pdf()
+
+
 def make_xlsx_inbox() -> AttachmentInbox:
     return AttachmentInbox(
         {
@@ -221,6 +252,33 @@ async def test_processor_compares_xlsx_si_with_docx_bl() -> None:
     assert len(case.comparison) == 7
 
 
+def test_document_to_text_reads_positioned_pdf_as_canonical_rows() -> None:
+    text = document_to_text("attachments/email_pdf_SI.pdf", PDF_CONTENT)
+
+    assert "Shipper: APRIL FAR EAST (M) SDN BHD" in text
+    assert "Port of Discharge: CALLAO, PERU" in text
+
+
+def test_pdf_text_reuses_existing_extractor_for_all_seven_fields() -> None:
+    fields = extract_shipping_fields(
+        document_to_text("attachments/email_pdf_BL.pdf", PDF_CONTENT)
+    )
+
+    assert all(value is not None for _, value in fields)
+    assert fields.container_count.normalized_value == "3"
+    assert fields.gross_weight_kg.normalized_value == "21577"
+
+
+def test_document_to_text_joins_multiple_pdf_pages() -> None:
+    content = make_pdf((PDF_ROWS[:4], PDF_ROWS[4:]))
+
+    fields = extract_shipping_fields(
+        document_to_text("attachments/email_pdf_BL.pdf", content)
+    )
+
+    assert all(value is not None for _, value in fields)
+
+
 async def test_processor_keeps_txt_extraction_behavior_unchanged() -> None:
     inbox = FakeInbox()
     case = await CaseProcessor(inbox).process_email(inbox.email)
@@ -231,11 +289,12 @@ async def test_processor_keeps_txt_extraction_behavior_unchanged() -> None:
     assert len(case.comparison) == 7
 
 
-async def test_processor_marks_unsupported_document_format_for_review() -> None:
+async def test_processor_marks_scanned_or_unreadable_pdf_for_review() -> None:
+    blank_pdf = make_pdf(((),))
     inbox = AttachmentInbox(
         {
             "attachments/email_xlsx_SI.xlsx": SI_XLSX,
-            "attachments/email_xlsx_BL.pdf": b"not a supported document",
+            "attachments/email_xlsx_BL.pdf": blank_pdf,
         }
     )
 
