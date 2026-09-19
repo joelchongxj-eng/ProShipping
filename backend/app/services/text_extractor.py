@@ -1,6 +1,7 @@
 import re
 
 from app.models import (
+    DocxSourceLocator,
     ExtractedField,
     ShippingFields,
     SourceLocation,
@@ -111,6 +112,22 @@ def _find_source_locator(
         return XlsxSourceLocator(
             sheet_name=source_line.sheet_name,
             cell_address=source_line.cell_address,
+        )
+
+    if source_line.paragraph_index is not None or source_line.table_index is not None:
+        if source_line.source_text is None:
+            return None
+        occurrences = list(re.finditer(re.escape(raw_value), source_line.source_text))
+        if len(occurrences) != 1:
+            return None
+        occurrence = occurrences[0]
+        return DocxSourceLocator(
+            paragraph_index=source_line.paragraph_index,
+            table_index=source_line.table_index,
+            row_index=source_line.row_index,
+            cell_index=source_line.cell_index,
+            start_char=occurrence.start(),
+            end_char=occurrence.end(),
         )
     return None
 

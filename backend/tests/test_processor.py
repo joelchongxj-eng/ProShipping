@@ -131,6 +131,30 @@ def make_docx(values: tuple[str | tuple[str, ...], ...] = DOCX_VALUES) -> bytes:
     return content.getvalue()
 
 
+def make_paragraph_docx(
+    shipper: str = "ACME SHIPPING LTD",
+    duplicate_shipper: bool = False,
+) -> bytes:
+    document = Document()
+    document.add_paragraph("SHIPPING INSTRUCTION")
+    rows = (
+        ("Shipper", shipper),
+        ("Consignee", "ACME IMPORTS LTD"),
+        ("Notify Party", "ACME NOTIFY LTD"),
+        ("Port of Loading", "PORT KLANG, MALAYSIA"),
+        ("Port of Discharge", "CALLAO, PERU"),
+        ("Container Count", "3"),
+        ("Gross Weight (KG)", "21,577 KG"),
+    )
+    for label, value in rows:
+        document.add_paragraph(f"{label}: {value}")
+        if duplicate_shipper and label == "Shipper":
+            document.add_paragraph(f"{label}: {value}")
+    content = BytesIO()
+    document.save(content)
+    return content.getvalue()
+
+
 BL_DOCX = make_docx()
 
 
@@ -266,6 +290,44 @@ def test_document_to_text_reads_docx_table_and_strips_bilingual_suffixes() -> No
     assert "Gross Weight毛重(KGS): 21,577 KG" in text
     assert "(发货人)" not in text
     assert "(通知人)" not in text
+
+
+def test_docx_multiline_table_value_keeps_locator_null_when_not_exactly_mappable() -> None:
+    filename = "attachments/email_docx_BL.docx"
+    content = make_docx(
+        (
+            ("APRIL FAR EAST (M) SDN BHD", "80 RAFFLES PLACE"),
+            *DOCX_VALUES[1:],
+        )
+    )
+    document = read_document(filename, content)
+
+    fields = extract_shipping_fields(
+        document.text,
+        source_filename=filename,
+        source_lines=document.source_lines,
+    )
+
+    assert fields.shipper is not None
+    assert fields.shipper.source is not None
+    assert getattr(fields.shipper.source, "locator", None) is None
+
+
+def test_docx_table_rows_take_precedence_over_top_level_paragraphs() -> None:
+    document = Document(BytesIO(BL_DOCX))
+    document.add_paragraph("Shipper: WRONG PARAGRAPH SHIPPER")
+    content = BytesIO()
+    document.save(content)
+    document_content = read_document(
+        "attachments/email_docx_BL.docx",
+        content.getvalue(),
+    )
+
+    assert "WRONG PARAGRAPH SHIPPER" not in document_content.text
+    assert document_content.text == document_to_text(
+        "attachments/email_xlsx_BL.docx",
+        BL_DOCX,
+    )
 
 
 def test_docx_text_reuses_existing_extractor_for_all_seven_fields() -> None:
@@ -422,10 +484,84 @@ async def test_processor_populates_xlsx_and_docx_source_metadata() -> None:
         "attachments/email_xlsx_BL.docx",
         page=None,
     )
-    assert all(
-        field is None or field.source is None or field.source.locator is None
-        for _, field in case.bl_fields
+    assert case.bl_fields.shipper is not None
+    assert case.bl_fields.shipper.source is not None
+    shipper_locator = getattr(case.bl_fields.shipper.source, "locator", None)
+    assert shipper_locator is not None
+    assert shipper_locator.model_dump() == {
+        "kind": "docx",
+        "paragraph_index": None,
+        "table_index": 0,
+        "row_index": 0,
+        "cell_index": 1,
+        "start_char": 0,
+        "end_char": 26,
+    }
+
+
+async def test_processor_extracts_paragraph_only_docx_with_zero_based_locator() -> None:
+    content = make_paragraph_docx()
+    inbox = AttachmentInbox(
+        {
+            "attachments/email_docx_SI.docx": content,
+            "attachments/email_docx_BL.docx": content,
+        }
     )
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.status is CaseStatus.MATCH
+    assert case.si_fields is not None
+    assert all(value is not None for _, value in case.si_fields)
+    assert case.si_fields.shipper is not None
+    assert case.si_fields.gross_weight_kg is not None
+    assert case.si_fields.shipper.source is not None
+    assert case.si_fields.gross_weight_kg.source is not None
+    shipper_locator = getattr(case.si_fields.shipper.source, "locator", None)
+    weight_locator = getattr(case.si_fields.gross_weight_kg.source, "locator", None)
+    assert shipper_locator is not None
+    assert weight_locator is not None
+    assert shipper_locator.model_dump() == {
+        "kind": "docx",
+        "paragraph_index": 1,
+        "table_index": None,
+        "row_index": None,
+        "cell_index": None,
+        "start_char": 9,
+        "end_char": 26,
+    }
+    assert weight_locator.model_dump() == {
+        "kind": "docx",
+        "paragraph_index": 7,
+        "table_index": None,
+        "row_index": None,
+        "cell_index": None,
+        "start_char": 19,
+        "end_char": 28,
+    }
+
+
+@pytest.mark.parametrize(
+    "content",
+    (
+        pytest.param(make_paragraph_docx(shipper="Shipper"), id="raw-value-repeated-in-line"),
+        pytest.param(make_paragraph_docx(duplicate_shipper=True), id="duplicate-evidence"),
+    ),
+)
+async def test_processor_leaves_ambiguous_docx_locator_null(content: bytes) -> None:
+    inbox = AttachmentInbox(
+        {
+            "attachments/email_docx_SI.docx": content,
+            "attachments/email_docx_BL.docx": content,
+        }
+    )
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.si_fields is not None
+    assert case.si_fields.shipper is not None
+    assert case.si_fields.shipper.source is not None
+    assert getattr(case.si_fields.shipper.source, "locator", None) is None
 
 
 async def test_processor_populates_xlsx_sheet_and_value_cell_locator() -> None:

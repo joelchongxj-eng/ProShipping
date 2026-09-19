@@ -27,6 +27,11 @@ class DocumentSourceLine:
     line_number: int | None = None
     sheet_name: str | None = None
     cell_address: str | None = None
+    source_text: str | None = None
+    paragraph_index: int | None = None
+    table_index: int | None = None
+    row_index: int | None = None
+    cell_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -93,23 +98,57 @@ def _docx_cell_to_text(cell: object) -> str:
     return " | ".join(parts)
 
 
-def _docx_to_text(content: bytes) -> str:
+def _docx_to_document(content: bytes) -> DocumentContent:
     try:
         document = Document(BytesIO(content))
     except (BadZipFile, PackageNotFoundError, OSError, ValueError) as exc:
         raise DocumentReadError("Unable to read DOCX attachment.") from exc
 
     lines: list[str] = []
-    for table in document.tables:
-        for row in table.rows:
+    source_lines: list[DocumentSourceLine] = []
+    for table_index, table in enumerate(document.tables):
+        for row_index, row in enumerate(table.rows):
             if len(row.cells) < 2:
                 continue
             label = _docx_cell_to_text(row.cells[0])
             value = _docx_cell_to_text(row.cells[1])
             label = CHINESE_PRESENTATION_SUFFIX.sub("", label).strip()
             if label and value:
-                lines.append(f"{label}: {value}")
-    return "\n".join(lines)
+                line = f"{label}: {value}"
+                lines.append(line)
+                source_lines.append(
+                    DocumentSourceLine(
+                        text=line,
+                        source_text=row.cells[1].text,
+                        table_index=table_index,
+                        row_index=row_index,
+                        cell_index=1,
+                    )
+                )
+
+    if lines:
+        return DocumentContent(
+            text="\n".join(lines),
+            source_lines=tuple(source_lines),
+        )
+
+    for paragraph_index, paragraph in enumerate(document.paragraphs):
+        source_text = paragraph.text
+        line = source_text.strip()
+        if not re.fullmatch(r".+?\s*:\s*.+", line):
+            continue
+        lines.append(line)
+        source_lines.append(
+            DocumentSourceLine(
+                text=line,
+                source_text=source_text,
+                paragraph_index=paragraph_index,
+            )
+        )
+    return DocumentContent(
+        text="\n".join(lines),
+        source_lines=tuple(source_lines),
+    )
 
 
 def _pdf_page_to_text(page: pymupdf.Page) -> str:
@@ -178,7 +217,7 @@ def read_document(filename: str, content: bytes) -> DocumentContent:
     if suffix == ".xlsx":
         return _xlsx_to_document(content)
     if suffix == ".docx":
-        return DocumentContent(text=_docx_to_text(content))
+        return _docx_to_document(content)
     if suffix == ".pdf":
         return _pdf_to_document(content)
     raise DocumentReadError(f"Unsupported document format: {suffix or '<none>'}")

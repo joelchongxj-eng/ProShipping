@@ -1,6 +1,7 @@
 import pytest
 
 from app.models import (
+    DocxSourceLocator,
     ExtractedField,
     SourceLocation,
     TxtSourceLocator,
@@ -87,6 +88,33 @@ def test_source_location_accepts_txt_and_xlsx_locators() -> None:
         "kind": "xlsx",
         "sheet_name": "Shipping Data",
         "cell_address": "B10",
+    }
+
+
+def test_source_location_accepts_optional_docx_locator() -> None:
+    source = SourceLocation(
+        filename="attachments/email_001_BL.docx",
+        page=None,
+        evidence_text="Shipper: ACME SHIPPING LTD",
+        locator=DocxSourceLocator(
+            kind="docx",
+            paragraph_index=None,
+            table_index=0,
+            row_index=0,
+            cell_index=1,
+            start_char=0,
+            end_char=17,
+        ),
+    )
+
+    assert source.model_dump()["locator"] == {
+        "kind": "docx",
+        "paragraph_index": None,
+        "table_index": 0,
+        "row_index": 0,
+        "cell_index": 1,
+        "start_char": 0,
+        "end_char": 17,
     }
 
 

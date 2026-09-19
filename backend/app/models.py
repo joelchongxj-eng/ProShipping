@@ -62,8 +62,18 @@ class XlsxSourceLocator(BaseModel):
     cell_address: str
 
 
+class DocxSourceLocator(BaseModel):
+    kind: Literal["docx"] = "docx"
+    paragraph_index: int | None = Field(default=None, ge=0)
+    table_index: int | None = Field(default=None, ge=0)
+    row_index: int | None = Field(default=None, ge=0)
+    cell_index: int | None = Field(default=None, ge=0)
+    start_char: int | None = Field(default=None, ge=0)
+    end_char: int | None = Field(default=None, ge=0)
+
+
 SourceLocator = Annotated[
-    TxtSourceLocator | XlsxSourceLocator,
+    TxtSourceLocator | XlsxSourceLocator | DocxSourceLocator,
     Field(discriminator="kind"),
 ]
 
