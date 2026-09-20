@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import PurePosixPath
 from zipfile import BadZipFile
@@ -14,6 +15,40 @@ class DocumentReadError(Exception):
     """The attachment format is unsupported or its content cannot be read."""
 
 
+@dataclass(frozen=True)
+class DocumentPage:
+    number: int
+    text: str
+
+
+@dataclass(frozen=True)
+class PdfSourceCharacter:
+    text: str
+    bbox: tuple[float, float, float, float] | None
+
+
+@dataclass(frozen=True)
+class DocumentSourceLine:
+    text: str
+    line_number: int | None = None
+    sheet_name: str | None = None
+    cell_address: str | None = None
+    source_text: str | None = None
+    paragraph_index: int | None = None
+    table_index: int | None = None
+    row_index: int | None = None
+    cell_index: int | None = None
+    page_number: int | None = None
+    pdf_characters: tuple[PdfSourceCharacter, ...] = ()
+
+
+@dataclass(frozen=True)
+class DocumentContent:
+    text: str
+    pages: tuple[DocumentPage, ...] = ()
+    source_lines: tuple[DocumentSourceLine, ...] = ()
+
+
 CHINESE_PRESENTATION_SUFFIX = re.compile(
     r"\s+\([^()]*[\u3400-\u9fff][^()]*\)\s*$"
 )
@@ -25,7 +60,7 @@ def _cell_to_text(value: object) -> str:
     return str(value).strip()
 
 
-def _xlsx_to_text(content: bytes) -> str:
+def _xlsx_to_document(content: bytes) -> DocumentContent:
     try:
         workbook = load_workbook(BytesIO(content), data_only=True, read_only=True)
     except (BadZipFile, InvalidFileException, OSError, ValueError) as exc:
@@ -34,14 +69,32 @@ def _xlsx_to_text(content: bytes) -> str:
     try:
         worksheet = workbook.active
         lines: list[str] = []
-        for label, value in worksheet.iter_rows(min_col=1, max_col=2, values_only=True):
+        source_lines: list[DocumentSourceLine] = []
+        for label_cell, value_cell in worksheet.iter_rows(
+            min_col=1,
+            max_col=2,
+            values_only=False,
+        ):
+            label = label_cell.value
+            value = value_cell.value
             if label is None or value is None:
                 continue
             label_text = _cell_to_text(label)
             value_text = _cell_to_text(value)
             if label_text and value_text:
-                lines.append(f"{label_text}: {value_text}")
-        return "\n".join(lines)
+                line = f"{label_text}: {value_text}"
+                lines.append(line)
+                source_lines.append(
+                    DocumentSourceLine(
+                        text=line,
+                        sheet_name=worksheet.title,
+                        cell_address=value_cell.coordinate,
+                    )
+                )
+        return DocumentContent(
+            text="\n".join(lines),
+            source_lines=tuple(source_lines),
+        )
     finally:
         workbook.close()
 
@@ -53,23 +106,57 @@ def _docx_cell_to_text(cell: object) -> str:
     return " | ".join(parts)
 
 
-def _docx_to_text(content: bytes) -> str:
+def _docx_to_document(content: bytes) -> DocumentContent:
     try:
         document = Document(BytesIO(content))
     except (BadZipFile, PackageNotFoundError, OSError, ValueError) as exc:
         raise DocumentReadError("Unable to read DOCX attachment.") from exc
 
     lines: list[str] = []
-    for table in document.tables:
-        for row in table.rows:
+    source_lines: list[DocumentSourceLine] = []
+    for table_index, table in enumerate(document.tables):
+        for row_index, row in enumerate(table.rows):
             if len(row.cells) < 2:
                 continue
             label = _docx_cell_to_text(row.cells[0])
             value = _docx_cell_to_text(row.cells[1])
             label = CHINESE_PRESENTATION_SUFFIX.sub("", label).strip()
             if label and value:
-                lines.append(f"{label}: {value}")
-    return "\n".join(lines)
+                line = f"{label}: {value}"
+                lines.append(line)
+                source_lines.append(
+                    DocumentSourceLine(
+                        text=line,
+                        source_text=row.cells[1].text,
+                        table_index=table_index,
+                        row_index=row_index,
+                        cell_index=1,
+                    )
+                )
+
+    if lines:
+        return DocumentContent(
+            text="\n".join(lines),
+            source_lines=tuple(source_lines),
+        )
+
+    for paragraph_index, paragraph in enumerate(document.paragraphs):
+        source_text = paragraph.text
+        line = source_text.strip()
+        if not re.fullmatch(r".+?\s*:\s*.+", line):
+            continue
+        lines.append(line)
+        source_lines.append(
+            DocumentSourceLine(
+                text=line,
+                source_text=source_text,
+                paragraph_index=paragraph_index,
+            )
+        )
+    return DocumentContent(
+        text="\n".join(lines),
+        source_lines=tuple(source_lines),
+    )
 
 
 def _pdf_page_to_text(page: pymupdf.Page) -> str:
@@ -102,14 +189,114 @@ def _pdf_page_to_text(page: pymupdf.Page) -> str:
     return "\n".join(part for part in (raw_text, *canonical_rows) if part)
 
 
-def _pdf_to_text(content: bytes) -> str:
+def _trim_pdf_characters(
+    characters: list[PdfSourceCharacter],
+) -> tuple[PdfSourceCharacter, ...]:
+    start = 0
+    end = len(characters)
+    while start < end and characters[start].text.isspace():
+        start += 1
+    while end > start and characters[end - 1].text.isspace():
+        end -= 1
+    return tuple(characters[start:end])
+
+
+def _pdf_page_source_lines(
+    page: pymupdf.Page,
+    page_number: int,
+) -> tuple[DocumentSourceLine, ...]:
+    raw_lines: list[DocumentSourceLine] = []
+    positioned_spans: list[
+        tuple[float, float, str, tuple[PdfSourceCharacter, ...]]
+    ] = []
+
+    for block in page.get_text("rawdict")["blocks"]:
+        for line in block.get("lines", []):
+            line_characters: list[PdfSourceCharacter] = []
+            for span in line.get("spans", []):
+                span_characters = _trim_pdf_characters(
+                    [
+                        PdfSourceCharacter(
+                            text=character["c"],
+                            bbox=tuple(float(value) for value in character["bbox"]),
+                        )
+                        for character in span.get("chars", [])
+                    ]
+                )
+                if not span_characters:
+                    continue
+                span_text = "".join(character.text for character in span_characters)
+                x0, y0, _, _ = span["bbox"]
+                positioned_spans.append(
+                    (float(y0), float(x0), span_text, span_characters)
+                )
+                line_characters.extend(span_characters)
+
+            trimmed_line_characters = _trim_pdf_characters(line_characters)
+            if trimmed_line_characters:
+                source_text = "".join(
+                    character.text for character in trimmed_line_characters
+                )
+                raw_lines.append(
+                    DocumentSourceLine(
+                        text=source_text,
+                        source_text=source_text,
+                        page_number=page_number,
+                        pdf_characters=trimmed_line_characters,
+                    )
+                )
+
+    rows: list[
+        list[tuple[float, float, str, tuple[PdfSourceCharacter, ...]]]
+    ] = []
+    for y0, x0, text, characters in sorted(positioned_spans):
+        if not rows or abs(y0 - rows[-1][0][0]) > 1:
+            rows.append([(y0, x0, text, characters)])
+        else:
+            rows[-1].append((y0, x0, text, characters))
+
+    canonical_lines: list[DocumentSourceLine] = []
+    for row in rows:
+        components = sorted(
+            ((x0, text, characters) for _, x0, text, characters in row),
+            key=lambda component: component[0],
+        )
+        if len(components) < 2:
+            continue
+        label = components[0][1]
+        value_components = components[1:]
+        value = " ".join(text for _, text, _ in value_components)
+        value_characters: list[PdfSourceCharacter] = []
+        for index, (_, _, characters) in enumerate(value_components):
+            if index:
+                value_characters.append(PdfSourceCharacter(text=" ", bbox=None))
+            value_characters.extend(characters)
+        canonical_lines.append(
+            DocumentSourceLine(
+                text=f"{label}: {value}",
+                source_text=value,
+                page_number=page_number,
+                pdf_characters=tuple(value_characters),
+            )
+        )
+
+    return tuple((*raw_lines, *canonical_lines))
+
+
+def _pdf_to_document(content: bytes) -> DocumentContent:
     try:
         document = pymupdf.open(stream=content, filetype="pdf")
     except (pymupdf.FileDataError, pymupdf.EmptyFileError, OSError, ValueError) as exc:
         raise DocumentReadError("Unable to read PDF attachment.") from exc
 
     try:
-        text = "\n".join(_pdf_page_to_text(page) for page in document).strip()
+        pages: list[DocumentPage] = []
+        source_lines: list[DocumentSourceLine] = []
+        for index, page in enumerate(document, start=1):
+            pages.append(DocumentPage(number=index, text=_pdf_page_to_text(page)))
+            source_lines.extend(_pdf_page_source_lines(page, index))
+        page_tuple = tuple(pages)
+        text = "\n".join(page.text for page in page_tuple).strip()
     except (RuntimeError, ValueError) as exc:
         raise DocumentReadError("Unable to read PDF attachment.") from exc
     finally:
@@ -117,17 +304,32 @@ def _pdf_to_text(content: bytes) -> str:
 
     if not text:
         raise DocumentReadError("PDF attachment contains no extractable text.")
-    return text
+    return DocumentContent(
+        text=text,
+        pages=page_tuple,
+        source_lines=tuple(source_lines),
+    )
+
+
+def read_document(filename: str, content: bytes) -> DocumentContent:
+    suffix = PurePosixPath(filename).suffix.casefold()
+    if suffix == ".txt":
+        text = content.decode("utf-8-sig")
+        return DocumentContent(
+            text=text,
+            source_lines=tuple(
+                DocumentSourceLine(text=line, line_number=line_number)
+                for line_number, line in enumerate(text.splitlines(), start=1)
+            ),
+        )
+    if suffix == ".xlsx":
+        return _xlsx_to_document(content)
+    if suffix == ".docx":
+        return _docx_to_document(content)
+    if suffix == ".pdf":
+        return _pdf_to_document(content)
+    raise DocumentReadError(f"Unsupported document format: {suffix or '<none>'}")
 
 
 def document_to_text(filename: str, content: bytes) -> str:
-    suffix = PurePosixPath(filename).suffix.casefold()
-    if suffix == ".txt":
-        return content.decode("utf-8-sig")
-    if suffix == ".xlsx":
-        return _xlsx_to_text(content)
-    if suffix == ".docx":
-        return _docx_to_text(content)
-    if suffix == ".pdf":
-        return _pdf_to_text(content)
-    raise DocumentReadError(f"Unsupported document format: {suffix or '<none>'}")
+    return read_document(filename, content).text

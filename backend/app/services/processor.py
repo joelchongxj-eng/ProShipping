@@ -8,23 +8,13 @@ from app.models import (
     CaseStatus,
     EmailCategory,
     EmailRecord,
-    FieldStatus,
     ReviewReason,
 )
 from app.services.classifier import classify_email
-from app.services.comparison import compare_documents
-from app.services.document_reader import DocumentReadError, document_to_text
-from app.services.text_extractor import extract_shipping_fields
-
-
-WRONG_DOCUMENT_TITLES = {
-    "commercial invoice",
-    "packing list",
-    "certificate of origin",
-}
-WRONG_DOCUMENT_DISCLAIMERS = (
-    "not an si or bl",
-    "packing list only",
+from app.services.document_pair import (
+    AIDocumentService,
+    SemanticAIService,
+    compare_document_pair_with_ai_fallback,
 )
 
 
@@ -36,18 +26,18 @@ def _find_attachment(attachments: list[str], token: str) -> str | None:
     return None
 
 
-def _is_wrong_document_type(text: str) -> bool:
-    lines = [line.strip().casefold() for line in text.splitlines() if line.strip()]
-    if lines and lines[0] in WRONG_DOCUMENT_TITLES:
-        return True
-    combined = "\n".join(lines)
-    return any(marker in combined for marker in WRONG_DOCUMENT_DISCLAIMERS)
-
-
 class CaseProcessor:
-    def __init__(self, inbox: InboxProtocol, concurrency: int = 12) -> None:
+    def __init__(
+        self,
+        inbox: InboxProtocol,
+        concurrency: int = 12,
+        ai_service: AIDocumentService | None = None,
+        semantic_ai_service: SemanticAIService | None = None,
+    ) -> None:
         self.inbox = inbox
         self._semaphore = asyncio.Semaphore(concurrency)
+        self.ai_service = ai_service
+        self.semantic_ai_service = semantic_ai_service
 
     async def process_all(self) -> list[CaseRecord]:
         emails = await self.inbox.list_emails()
@@ -70,46 +60,26 @@ class CaseProcessor:
                     bl_attachment=bl_path,
                     review_reason=ReviewReason.MISSING_ATTACHMENT,
                 )
-            try:
-                si_content, bl_content = await asyncio.gather(
-                    self.inbox.get_attachment(si_path),
-                    self.inbox.get_attachment(bl_path),
-                )
-                si_text = document_to_text(si_path, si_content)
-                bl_text = document_to_text(bl_path, bl_content)
-                if _is_wrong_document_type(si_text) or _is_wrong_document_type(bl_text):
-                    return CaseRecord(
-                        email=email,
-                        category=category,
-                        status=CaseStatus.NEEDS_REVIEW,
-                        si_attachment=si_path,
-                        bl_attachment=bl_path,
-                        review_reason=ReviewReason.WRONG_DOC_TYPE,
-                    )
-                si_fields = extract_shipping_fields(si_text)
-                bl_fields = extract_shipping_fields(bl_text)
-            except (DocumentReadError, UnicodeDecodeError, OSError):
-                return CaseRecord(
-                    email=email,
-                    category=category,
-                    status=CaseStatus.NEEDS_REVIEW,
-                    si_attachment=si_path,
-                    bl_attachment=bl_path,
-                    review_reason=ReviewReason.UNREADABLE,
-                )
-
-            result = compare_documents(si_fields, bl_fields)
-            review_reason = None
-            if any(item.status is FieldStatus.MISSING for item in result.fields):
-                review_reason = ReviewReason.MISSING_VALUE
+            si_content, bl_content = await asyncio.gather(
+                self.inbox.get_attachment(si_path),
+                self.inbox.get_attachment(bl_path),
+            )
+            result = await compare_document_pair_with_ai_fallback(
+                si_path,
+                si_content,
+                bl_path,
+                bl_content,
+                self.ai_service,
+                self.semantic_ai_service,
+            )
             return CaseRecord(
                 email=email,
                 category=category,
                 status=result.status,
                 si_attachment=si_path,
                 bl_attachment=bl_path,
-                si_fields=si_fields,
-                bl_fields=bl_fields,
-                comparison=result.fields,
-                review_reason=review_reason,
+                si_fields=result.si_fields,
+                bl_fields=result.bl_fields,
+                comparison=result.comparison,
+                review_reason=result.review_reason,
             )

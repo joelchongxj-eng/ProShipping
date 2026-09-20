@@ -1,6 +1,11 @@
+from datetime import datetime
 from enum import StrEnum
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError, field_validator
+
+
+_DATETIME_ADAPTER = TypeAdapter(datetime)
 
 
 class EmailCategory(StrEnum):
@@ -16,6 +21,13 @@ class FieldStatus(StrEnum):
     MISMATCH = "mismatch"
     NEEDS_REVIEW = "needs_review"
     MISSING = "missing"
+
+
+class ComparisonMethod(StrEnum):
+    EXACT = "EXACT"
+    NORMALIZED = "NORMALIZED"
+    SEMANTIC_RULE = "SEMANTIC_RULE"
+    SEMANTIC_AI = "SEMANTIC_AI"
 
 
 class CaseStatus(StrEnum):
@@ -44,8 +56,68 @@ class EmailRecord(BaseModel):
     subject: str
     body: str
     attachments: list[str] = Field(default_factory=list)
+    received_at: datetime | None = None
+
+    @field_validator("received_at", mode="before")
+    @classmethod
+    def invalid_received_at_is_unavailable(cls, value: object) -> datetime | None:
+        if value is None:
+            return None
+        try:
+            return _DATETIME_ADAPTER.validate_python(value)
+        except (ValidationError, TypeError, ValueError):
+            return None
 
     model_config = {"populate_by_name": True}
+
+
+class TxtSourceLocator(BaseModel):
+    kind: Literal["txt"] = "txt"
+    line_number: int = Field(ge=1)
+    start_char: int = Field(ge=0)
+    end_char: int = Field(ge=0)
+
+
+class XlsxSourceLocator(BaseModel):
+    kind: Literal["xlsx"] = "xlsx"
+    sheet_name: str
+    cell_address: str
+
+
+class DocxSourceLocator(BaseModel):
+    kind: Literal["docx"] = "docx"
+    paragraph_index: int | None = Field(default=None, ge=0)
+    table_index: int | None = Field(default=None, ge=0)
+    row_index: int | None = Field(default=None, ge=0)
+    cell_index: int | None = Field(default=None, ge=0)
+    start_char: int | None = Field(default=None, ge=0)
+    end_char: int | None = Field(default=None, ge=0)
+
+
+class PdfBoundingBox(BaseModel):
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+
+class PdfSourceLocator(BaseModel):
+    kind: Literal["pdf"] = "pdf"
+    page: int = Field(ge=1)
+    bbox: PdfBoundingBox
+
+
+SourceLocator = Annotated[
+    TxtSourceLocator | XlsxSourceLocator | DocxSourceLocator | PdfSourceLocator,
+    Field(discriminator="kind"),
+]
+
+
+class SourceLocation(BaseModel):
+    filename: str
+    page: int | None = None
+    evidence_text: str
+    locator: SourceLocator | None = None
 
 
 class ExtractedField(BaseModel):
@@ -56,6 +128,7 @@ class ExtractedField(BaseModel):
     confidence: float = Field(ge=0, le=1)
     page: int | None = None
     evidence: str
+    source: SourceLocation | None = None
 
 
 class ShippingFields(BaseModel):
@@ -74,11 +147,38 @@ class FieldComparison(BaseModel):
     si: ExtractedField | None
     bl: ExtractedField | None
     reason: str
+    comparison_method: ComparisonMethod | None = None
+    equivalence_reason: str | None = None
 
 
 class ComparisonResult(BaseModel):
     status: CaseStatus
     fields: list[FieldComparison]
+
+
+class DocumentPairResult(BaseModel):
+    status: CaseStatus
+    si_fields: ShippingFields | None = None
+    bl_fields: ShippingFields | None = None
+    comparison: list[FieldComparison] = Field(default_factory=list)
+    review_reason: ReviewReason | None = None
+
+
+class UploadedFileReference(BaseModel):
+    filename: str
+    source_filename: str
+    attachment_url: str
+
+
+class UploadComparisonResponse(BaseModel):
+    comparison_id: str
+    status: CaseStatus
+    review_reason: ReviewReason | None = None
+    si_file: UploadedFileReference
+    bl_file: UploadedFileReference
+    si_fields: ShippingFields | None = None
+    bl_fields: ShippingFields | None = None
+    comparison: list[FieldComparison] = Field(default_factory=list)
 
 
 class CaseRecord(BaseModel):
@@ -99,4 +199,3 @@ class SubmissionEntry(BaseModel):
     review_reason: ReviewReason | None = None
     has_defect: bool
     defect_fields: list[str] = Field(default_factory=list)
-

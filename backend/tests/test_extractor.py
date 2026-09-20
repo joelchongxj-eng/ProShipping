@@ -1,5 +1,14 @@
 import pytest
 
+from app.models import (
+    DocxSourceLocator,
+    ExtractedField,
+    PdfBoundingBox,
+    PdfSourceLocator,
+    SourceLocation,
+    TxtSourceLocator,
+    XlsxSourceLocator,
+)
 from app.services.text_extractor import extract_shipping_fields
 
 
@@ -22,6 +31,112 @@ POD: CALLAO, PERU (PECLL)
 Container Count: 1 x 40'HC
 Gross Wt (kgs): 21,577 KG
 """
+
+
+def test_source_location_schema_is_optional_for_backward_compatibility() -> None:
+    field = ExtractedField(
+        field="shipper",
+        raw_value="ACME SHIPPING LTD",
+        normalized_value="acme shipping ltd",
+        confidence=0.99,
+        page=1,
+        evidence="Shipper: ACME SHIPPING LTD",
+    )
+
+    assert field.source is None
+    source = SourceLocation(
+        filename="attachments/email_001_SI.txt",
+        page=None,
+        evidence_text="Shipper: ACME SHIPPING LTD",
+    )
+    assert source.model_dump() == {
+        "filename": "attachments/email_001_SI.txt",
+        "page": None,
+        "evidence_text": "Shipper: ACME SHIPPING LTD",
+        "locator": None,
+    }
+
+
+def test_source_location_accepts_txt_and_xlsx_locators() -> None:
+    txt_source = SourceLocation(
+        filename="attachments/email_001_SI.txt",
+        page=None,
+        evidence_text="Gross Weight (KG): 21,577 KG",
+        locator=TxtSourceLocator(
+            kind="txt",
+            line_number=8,
+            start_char=19,
+            end_char=28,
+        ),
+    )
+    xlsx_source = SourceLocation(
+        filename="attachments/email_055_SI.xlsx",
+        page=None,
+        evidence_text="Gross Weight (KG): 21577",
+        locator=XlsxSourceLocator(
+            kind="xlsx",
+            sheet_name="Shipping Data",
+            cell_address="B10",
+        ),
+    )
+
+    assert txt_source.model_dump()["locator"] == {
+        "kind": "txt",
+        "line_number": 8,
+        "start_char": 19,
+        "end_char": 28,
+    }
+    assert xlsx_source.model_dump()["locator"] == {
+        "kind": "xlsx",
+        "sheet_name": "Shipping Data",
+        "cell_address": "B10",
+    }
+
+
+def test_source_location_accepts_optional_docx_locator() -> None:
+    source = SourceLocation(
+        filename="attachments/email_001_BL.docx",
+        page=None,
+        evidence_text="Shipper: ACME SHIPPING LTD",
+        locator=DocxSourceLocator(
+            kind="docx",
+            paragraph_index=None,
+            table_index=0,
+            row_index=0,
+            cell_index=1,
+            start_char=0,
+            end_char=17,
+        ),
+    )
+
+    assert source.model_dump()["locator"] == {
+        "kind": "docx",
+        "paragraph_index": None,
+        "table_index": 0,
+        "row_index": 0,
+        "cell_index": 1,
+        "start_char": 0,
+        "end_char": 17,
+    }
+
+
+def test_source_location_accepts_optional_pdf_locator() -> None:
+    source = SourceLocation(
+        filename="attachments/email_001_BL.pdf",
+        page=2,
+        evidence_text="Gross Weight (KG): 21,577 KG",
+        locator=PdfSourceLocator(
+            kind="pdf",
+            page=2,
+            bbox=PdfBoundingBox(x0=220.0, y0=60.0, x1=269.0, y1=75.0),
+        ),
+    )
+
+    assert source.model_dump()["locator"] == {
+        "kind": "pdf",
+        "page": 2,
+        "bbox": {"x0": 220.0, "y0": 60.0, "x1": 269.0, "y1": 75.0},
+    }
 
 
 def test_extracts_seven_fields_from_si_and_bl_text() -> None:

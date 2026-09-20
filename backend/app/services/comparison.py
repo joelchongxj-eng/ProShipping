@@ -1,11 +1,13 @@
 from app.models import (
     CaseStatus,
+    ComparisonMethod,
     ComparisonResult,
     ExtractedField,
     FieldComparison,
     FieldStatus,
     ShippingFields,
 )
+from app.services.semantic_equivalence import deterministic_equivalence
 
 
 FIELD_NAMES = (
@@ -41,6 +43,15 @@ def compare_field(
             bl=bl,
             reason="Extraction confidence is below the review threshold.",
         )
+    if si.raw_value == bl.raw_value:
+        return FieldComparison(
+            field=name,
+            status=FieldStatus.MATCH,
+            si=si,
+            bl=bl,
+            reason="Normalized values are equal.",
+            comparison_method=ComparisonMethod.EXACT,
+        )
     if si.normalized_value == bl.normalized_value:
         return FieldComparison(
             field=name,
@@ -48,6 +59,18 @@ def compare_field(
             si=si,
             bl=bl,
             reason="Normalized values are equal.",
+            comparison_method=ComparisonMethod.NORMALIZED,
+        )
+    semantic = deterministic_equivalence(name, si.raw_value, bl.raw_value)
+    if semantic.equivalent:
+        return FieldComparison(
+            field=name,
+            status=FieldStatus.MATCH,
+            si=si,
+            bl=bl,
+            reason=semantic.reason or "Values are deterministically equivalent.",
+            comparison_method=ComparisonMethod.SEMANTIC_RULE,
+            equivalence_reason=semantic.reason,
         )
     return FieldComparison(
         field=name,
@@ -55,6 +78,7 @@ def compare_field(
         si=si,
         bl=bl,
         reason="Reliable normalized values are different.",
+        comparison_method=ComparisonMethod.NORMALIZED,
     )
 
 
@@ -68,4 +92,3 @@ def compare_documents(si: ShippingFields, bl: ShippingFields) -> ComparisonResul
     else:
         status = CaseStatus.MATCH
     return ComparisonResult(status=status, fields=fields)
-
