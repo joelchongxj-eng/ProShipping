@@ -14,6 +14,4 @@ export interface InboxDisplayRow {
   body: string;
   attachments: string[];
   category: EmailCategory;
-  /** Null until CaseRecord exposes the classifier's reason through the API. */
-  classification_reason: string | null;
 }

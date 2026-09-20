@@ -15,10 +15,6 @@ export function getCategoryLabel(category: unknown): string {
     : "Unknown";
 }
 
-export function getClassificationReasonDisplay(reason: string | null): string {
-  return reason?.trim() || "—";
-}
-
 export type CategoryFilter = EmailCategory | "all";
 export interface InboxFilters { category: CategoryFilter }
 export const defaultFilters: InboxFilters = { category: "all" };

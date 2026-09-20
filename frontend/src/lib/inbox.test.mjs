@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { filterEmails, getClassificationReasonDisplay } from "../components/inbox/inbox-filters.ts";
+import { filterEmails } from "../components/inbox/inbox-filters.ts";
 import { mapBackendCasesToInboxRows } from "./inbox.ts";
 
 function makeCase(emailId, category) {
@@ -21,15 +21,9 @@ function makeCase(emailId, category) {
 
 test("maps backend cases without inventing received dates or classification confidence", () => {
   const [row] = mapBackendCasesToInboxRows([makeCase("email_001", "GENERAL")]);
-  assert.equal(row.classification_reason, null);
+  assert.equal("classification_reason" in row, false);
   assert.equal("received_at_mock" in row, false);
   assert.equal("classification_confidence_mock" in row, false);
-});
-
-test("renders supplied classification reasons and a neutral unavailable fallback", () => {
-  assert.equal(getClassificationReasonDisplay("Matched invoice terminology"), "Matched invoice terminology");
-  assert.equal(getClassificationReasonDisplay(null), "—");
-  assert.equal(getClassificationReasonDisplay("  "), "—");
 });
 
 test("category filtering remains independent of removed mock filters", () => {
@@ -41,9 +35,12 @@ test("category filtering remains independent of removed mock filters", () => {
   assert.deepEqual(filterEmails(rows, { category: "GENERAL" }).map((row) => row.email_id), ["email_002"]);
 });
 
-test("Inbox markup exposes Classification Reason and removes mock date and confidence controls", async () => {
+test("Inbox markup keeps the core columns and removes unsupported fields", async () => {
   const source = await readFile(new URL("../components/inbox/inbox-queue.tsx", import.meta.url), "utf8");
-  assert.match(source, /Classification Reason/);
+  const summary = await readFile(new URL("../components/inbox/email-summary.tsx", import.meta.url), "utf8");
+  for (const heading of ["Email ID", "Sender", "Subject", "Category", "Action"]) assert.match(source, new RegExp(`"${heading}"`));
+  assert.doesNotMatch(source, /Classification Reason|classification_reason/);
+  assert.doesNotMatch(summary, /Classification reason|classification_reason/);
   assert.doesNotMatch(source, /Received date|All dates|Received \(M\)/);
   assert.doesNotMatch(source, /Classification confidence|All confidence levels|classification_confidence_mock/);
   assert.doesNotMatch(source, /Reset filters|\(M\) = Mock data/);

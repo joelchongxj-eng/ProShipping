@@ -9,7 +9,5 @@ export function mapBackendCasesToInboxRows(cases: VerificationCase[]): InboxDisp
     body: item.email.body,
     attachments: item.email.attachments,
     category: item.category,
-    // The current CaseRecord API does not expose the internal classifier reason.
-    classification_reason: null,
   }));
 }
