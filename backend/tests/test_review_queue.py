@@ -204,7 +204,7 @@ def test_queue_aggregates_active_escalation_and_delivery_status() -> None:
     assert item["human_review_status"] == "ESCALATED"
     assert item["is_escalated"] is True
     assert item["active_escalation_reason"] == "Supervisor must choose the weight."
-    assert item["latest_email_delivery_status"] == "NOT_CONFIGURED"
+    assert item["latest_email_delivery_status"] is None
     filtered = client.get(
         "/api/review-queue",
         params={"is_escalated": "true"},

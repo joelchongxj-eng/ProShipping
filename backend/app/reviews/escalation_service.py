@@ -54,9 +54,15 @@ class SMTPEmailSender:
 
     @classmethod
     def from_environment(cls) -> "SMTPEmailSender | None":
+        return cls.from_environment_for_recipient(os.getenv("SUPERVISOR_EMAIL"))
+
+    @classmethod
+    def from_environment_for_recipient(
+        cls,
+        recipient: str | None,
+    ) -> "SMTPEmailSender | None":
         host = os.getenv("SMTP_HOST")
         sender = os.getenv("SMTP_FROM_EMAIL")
-        recipient = os.getenv("SUPERVISOR_EMAIL")
         if not host or not sender or not recipient:
             return None
         try:
@@ -117,7 +123,7 @@ class EscalationService:
                 created_at=datetime.now(UTC),
             )
         )
-        return await self._deliver(assignment)
+        return assignment
 
     def history(
         self,

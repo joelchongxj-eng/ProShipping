@@ -22,6 +22,7 @@ from app.reviews.retry_service import RetryExecutionError, RetryExecutionService
 from app.reviews.review_queue import HumanReviewQueueResponse
 from app.reviews.review_queue_service import HumanReviewQueueService
 from app.reviews.service import HumanReviewError, HumanReviewService
+from app.submission.service import SubmissionWorkflowError, SubmissionWorkflowService
 
 
 def create_review_router(
@@ -29,6 +30,7 @@ def create_review_router(
     retry_service: RetryExecutionService,
     escalation_service: EscalationService,
     queue_service: HumanReviewQueueService,
+    submission_workflow_service: SubmissionWorkflowService,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -44,7 +46,16 @@ def create_review_router(
         if request.action is ReviewAction.RETRY:
             await retry_service.execute(review)
         if request.action is ReviewAction.ESCALATE:
-            await escalation_service.create(review, request)
+            assignment = await escalation_service.create(review, request)
+            try:
+                submission_workflow_service.add_supervisor(review, assignment)
+            except SubmissionWorkflowError as exc:
+                raise HTTPException(exc.status_code, exc.detail) from exc
+        if request.action is ReviewAction.REQUEST_INFORMATION:
+            try:
+                submission_workflow_service.add_sender(review)
+            except SubmissionWorkflowError as exc:
+                raise HTTPException(exc.status_code, exc.detail) from exc
         return review
 
     def get_history(

@@ -31,6 +31,7 @@ class ReviewAction(StrEnum):
     ADD_NOTE = "ADD_NOTE"
     RETRY = "RETRY"
     ESCALATE = "ESCALATE"
+    REQUEST_INFORMATION = "REQUEST_INFORMATION"
 
 
 class HumanReviewStatus(StrEnum):
@@ -42,6 +43,7 @@ class HumanReviewStatus(StrEnum):
     UNREADABLE = "UNREADABLE"
     RETRY_REQUESTED = "RETRY_REQUESTED"
     ESCALATED = "ESCALATED"
+    INFORMATION_REQUESTED = "INFORMATION_REQUESTED"
 
 
 class ShippingFieldName(StrEnum):
@@ -64,6 +66,7 @@ class CreateHumanReviewRequest(BaseModel):
     escalation_reason: str | None = None
     reviewer_action: str | None = None
     requested_decision: str | None = None
+    request_reason: str | None = None
 
 
 class NewHumanReviewRecord(BaseModel):
@@ -84,6 +87,7 @@ class NewHumanReviewRecord(BaseModel):
     review_status: HumanReviewStatus
     is_escalated: bool = False
     escalation_reason: str | None = None
+    request_reason: str | None = None
     escalated_at: datetime | None = None
     automated_result_hash: str
     created_at: datetime

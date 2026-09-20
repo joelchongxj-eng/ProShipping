@@ -110,6 +110,11 @@ class HumanReviewService:
                 if carries_escalation
                 else None
             ),
+            request_reason=(
+                self._clean(request.request_reason)
+                if request.action is ReviewAction.REQUEST_INFORMATION
+                else None
+            ),
             escalated_at=(
                 now
                 if request.action is ReviewAction.ESCALATE
@@ -262,6 +267,29 @@ class HumanReviewService:
                     "requested_decision is only valid for ESCALATE.",
                 )
 
+        if request.action is ReviewAction.REQUEST_INFORMATION:
+            if target.status not in {CaseStatus.MISMATCH, CaseStatus.NEEDS_REVIEW}:
+                raise HumanReviewError(
+                    409,
+                    "REQUEST_INFORMATION is only valid for MISMATCH or NEEDS_REVIEW.",
+                )
+            if request.scope is not ReviewScope.FIELD or request.field is None:
+                raise HumanReviewError(422, "REQUEST_INFORMATION requires field scope.")
+            if request.side is not ReviewSide.BOTH:
+                raise HumanReviewError(422, "REQUEST_INFORMATION requires side BOTH.")
+            if isinstance(target, UploadComparisonResponse):
+                raise HumanReviewError(
+                    409,
+                    "REQUEST_INFORMATION requires a competition email sender.",
+                )
+            if not self._clean(request.request_reason):
+                raise HumanReviewError(422, "REQUEST_INFORMATION requires request_reason.")
+        elif request.request_reason is not None:
+            raise HumanReviewError(
+                422,
+                "request_reason is only valid for REQUEST_INFORMATION.",
+            )
+
         if request.action is ReviewAction.EQUIVALENT:
             if request.scope is not ReviewScope.FIELD or request.side is not ReviewSide.BOTH:
                 raise HumanReviewError(
@@ -313,6 +341,7 @@ class HumanReviewService:
             ReviewAction.UNREADABLE: HumanReviewStatus.UNREADABLE,
             ReviewAction.RETRY: HumanReviewStatus.RETRY_REQUESTED,
             ReviewAction.ESCALATE: HumanReviewStatus.ESCALATED,
+            ReviewAction.REQUEST_INFORMATION: HumanReviewStatus.INFORMATION_REQUESTED,
         }[action]
 
     @staticmethod

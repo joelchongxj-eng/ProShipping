@@ -85,6 +85,9 @@ def clear_state(monkeypatch: pytest.MonkeyPatch) -> None:
     store = getattr(main, "escalation_store", None)
     if store is not None:
         store.clear()
+    workflow_store = getattr(main, "submission_workflow_store", None)
+    if workflow_store is not None:
+        workflow_store.clear()
     monkeypatch.delenv("SUPERVISOR_EMAIL", raising=False)
     monkeypatch.delenv("SMTP_HOST", raising=False)
     monkeypatch.delenv("SMTP_FROM_EMAIL", raising=False)
@@ -97,6 +100,8 @@ def clear_state(monkeypatch: pytest.MonkeyPatch) -> None:
     main.human_review_store.clear()
     if store is not None:
         store.clear()
+    if workflow_store is not None:
+        workflow_store.clear()
     if escalation_service is not None:
         escalation_service.sender_factory = original_sender_factory
 
@@ -148,7 +153,7 @@ def test_escalate_requires_a_specific_field_and_both_values(
     assert response.json() == {"detail": expected_detail}
 
 
-def test_unconfigured_delivery_saves_only_relevant_field_assignment() -> None:
+def test_escalation_saves_only_relevant_field_without_delivery() -> None:
     seed_mismatch_case("email_escalation_not_configured")
     client = TestClient(main.app)
 
@@ -176,13 +181,11 @@ def test_unconfigured_delivery_saves_only_relevant_field_assignment() -> None:
     )
     assert "si_fields" not in assignment
     assert "bl_fields" not in assignment
-    assert assignment["delivery_status"] == "NOT_CONFIGURED"
-    assert [attempt["status"] for attempt in assignment["delivery_attempts"]] == [
-        "NOT_CONFIGURED"
-    ]
+    assert assignment["delivery_status"] is None
+    assert assignment["delivery_attempts"] == []
 
 
-def test_configured_delivery_sends_field_only_supervisor_email() -> None:
+def test_configured_smtp_does_not_send_during_human_review() -> None:
     seed_mismatch_case("email_escalation_sent")
     sender = RecordingSender()
     main.escalation_service.sender_factory = lambda: sender
@@ -197,19 +200,12 @@ def test_configured_delivery_sends_field_only_supervisor_email() -> None:
     ).json()["assignments"][0]
 
     assert created.status_code == 201
-    assert assignment["delivery_status"] == "SENT"
-    assert assignment["supervisor_email"] == "supervisor@example.com"
-    assert len(sender.messages) == 1
-    subject, body = sender.messages[0]
-    assert subject == "Shipping document escalation: gross_weight_kg"
-    assert "SI value: 21,577 KG" in body
-    assert "BL value: 20,000 KG" in body
-    assert "Reviewer action: Checked the source values in both documents." in body
-    assert "Requested decision: Approve the SI value or request a corrected BL." in body
-    assert "ACME EXPORT LTD" not in body
+    assert assignment["delivery_status"] is None
+    assert assignment["supervisor_email"] is None
+    assert sender.messages == []
 
 
-def test_failed_delivery_can_be_resent_without_another_review_record() -> None:
+def test_undelivered_assignment_is_not_a_failed_delivery_to_resend() -> None:
     seed_mismatch_case("email_escalation_resend")
     main.escalation_service.sender_factory = lambda: FailingSender()
     client = TestClient(main.app)
@@ -224,35 +220,19 @@ def test_failed_delivery_can_be_resent_without_another_review_record() -> None:
     review_count_before = len(
         client.get("/api/cases/email_escalation_resend/reviews").json()["reviews"]
     )
-    successful_sender = RecordingSender()
-    main.escalation_service.sender_factory = lambda: successful_sender
-
     resent = client.post(f"/api/escalations/{failed['assignment_id']}/resend")
     reviews_after = client.get(
         "/api/cases/email_escalation_resend/reviews"
     ).json()["reviews"]
 
     assert created.status_code == 201
-    assert failed["delivery_status"] == "FAILED"
-    assert failed["delivery_attempts"][0]["error_reason"] == (
-        "Supervisor email delivery failed."
-    )
-    assert "secret" not in failed["delivery_attempts"][0]["error_reason"]
-    assert resent.status_code == 200
-    assert resent.json()["delivery_status"] == "SENT"
-    assert [attempt["status"] for attempt in resent.json()["delivery_attempts"]] == [
-        "FAILED",
-        "SENT",
-    ]
-    assert [attempt["attempt_number"] for attempt in resent.json()["delivery_attempts"]] == [
-        1,
-        2,
-    ]
+    assert failed["delivery_status"] is None
+    assert failed["delivery_attempts"] == []
+    assert resent.status_code == 409
     assert len(reviews_after) == review_count_before == 1
     assert reviews_after[0]["action"] == "ESCALATE"
-    assert len(successful_sender.messages) == 1
     events = main.escalation_store._events[UUID(failed["assignment_id"])]
-    assert [event.delivery_status for event in events] == [None, "FAILED", "SENT"]
+    assert [event.delivery_status for event in events] == [None]
 
 
 def test_non_failed_delivery_cannot_be_resent() -> None:
@@ -276,7 +256,7 @@ def test_non_failed_delivery_cannot_be_resent() -> None:
     assert response.json() == {
         "detail": "Only FAILED escalation email deliveries can be resent."
     }
-    assert len(sender.messages) == 1
+    assert sender.messages == []
 
 
 def test_review_is_appended_before_assignment_delivery(
@@ -285,10 +265,13 @@ def test_review_is_appended_before_assignment_delivery(
     seed_mismatch_case("email_escalation_order")
     observed: list[str] = []
 
+    original_create = main.escalation_service.create
+
     async def observe(review, request):
         reviews = main.human_review_store.list(review.target_type, review.target_id)
         assert reviews[-1].review_id == review.review_id
         observed.append(str(review.review_id))
+        return await original_create(review, request)
 
     monkeypatch.setattr(main.escalation_service, "create", observe)
 
@@ -335,7 +318,7 @@ def test_unknown_assignment_resend_returns_404() -> None:
     assert response.json() == {"detail": "Escalation assignment not found."}
 
 
-def test_invalid_smtp_port_is_treated_as_not_configured(
+def test_invalid_smtp_port_is_not_consulted_until_submission(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     seed_mismatch_case("email_escalation_bad_smtp")
@@ -353,4 +336,4 @@ def test_invalid_smtp_port_is_treated_as_not_configured(
     assignment = TestClient(main.app).get(
         "/api/cases/email_escalation_bad_smtp/escalations"
     ).json()["assignments"][0]
-    assert assignment["delivery_status"] == "NOT_CONFIGURED"
+    assert assignment["delivery_status"] is None

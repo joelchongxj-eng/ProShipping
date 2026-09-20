@@ -28,6 +28,9 @@ from app.services.document_pair import compare_document_pair_with_ai_fallback
 from app.services.processor import CaseProcessor
 from app.services.submission import build_submission_entry
 from app.services.upload_store import UploadComparisonStore
+from app.submission.router import create_submission_workflow_router
+from app.submission.service import SubmissionWorkflowService
+from app.submission.store import SubmissionWorkflowStore
 
 
 app = FastAPI(title="ProShipping API", version="0.1.0")
@@ -58,6 +61,7 @@ upload_store = UploadComparisonStore(
 human_review_store = HumanReviewStore()
 escalation_store = EscalationStore()
 escalation_service = EscalationService(escalation_store)
+submission_workflow_store = SubmissionWorkflowStore()
 retry_execution_store = RetryExecutionStore()
 retry_execution_service = RetryExecutionService(
     retry_execution_store,
@@ -77,6 +81,15 @@ human_review_service = HumanReviewService(
     ),
     retry_upload_lookup=retry_execution_service.registered_upload,
 )
+submission_workflow_service = SubmissionWorkflowService(
+    submission_workflow_store,
+    case_lookup=lambda email_id: cases.get(email_id),
+    upload_lookup=lambda comparison_id: (
+        session.response
+        if (session := upload_store.get(comparison_id)) is not None
+        else retry_execution_service.registered_upload(comparison_id)
+    ),
+)
 review_queue_service = HumanReviewQueueService(
     case_list=lambda: list(cases.values()),
     review_service=human_review_service,
@@ -89,11 +102,14 @@ app.include_router(
         retry_execution_service,
         escalation_service,
         review_queue_service,
+        submission_workflow_service,
     )
 )
+app.include_router(create_submission_workflow_router(submission_workflow_service))
 app.router.add_event_handler("shutdown", upload_store.close)
 app.router.add_event_handler("shutdown", human_review_store.clear)
 app.router.add_event_handler("shutdown", escalation_store.clear)
+app.router.add_event_handler("shutdown", submission_workflow_store.clear)
 app.router.add_event_handler("shutdown", retry_execution_store.clear)
 app.router.add_event_handler(
     "shutdown",
