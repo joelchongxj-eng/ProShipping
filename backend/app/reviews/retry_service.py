@@ -17,6 +17,7 @@ from app.reviews.retry import (
 )
 from app.services.document_pair import (
     AIDocumentService,
+    SemanticAIService,
     compare_document_pair_with_ai_fallback,
 )
 from app.services.processor import CaseProcessor
@@ -39,12 +40,14 @@ class RetryExecutionService:
         case_lookup: Callable[[str], CaseRecord | None],
         upload_session_lookup: Callable[[str], UploadSession | None],
         ai_service_lookup: Callable[[], AIDocumentService | None],
+        semantic_ai_service_lookup: Callable[[], SemanticAIService | None] | None = None,
     ) -> None:
         self.store = store
         self.processor = processor
         self.case_lookup = case_lookup
         self.upload_session_lookup = upload_session_lookup
         self.ai_service_lookup = ai_service_lookup
+        self.semantic_ai_service_lookup = semantic_ai_service_lookup or (lambda: None)
         self._registered_uploads: dict[str, UploadComparisonResponse] = {}
 
     def register_upload(self, response: UploadComparisonResponse) -> None:
@@ -151,6 +154,7 @@ class RetryExecutionService:
             original.bl_file.source_filename,
             bl_content,
             self.ai_service_lookup(),
+            self.semantic_ai_service_lookup(),
         )
         return UploadComparisonResponse(
             comparison_id=original.comparison_id,

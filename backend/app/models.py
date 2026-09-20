@@ -23,6 +23,13 @@ class FieldStatus(StrEnum):
     MISSING = "missing"
 
 
+class ComparisonMethod(StrEnum):
+    EXACT = "EXACT"
+    NORMALIZED = "NORMALIZED"
+    SEMANTIC_RULE = "SEMANTIC_RULE"
+    SEMANTIC_AI = "SEMANTIC_AI"
+
+
 class CaseStatus(StrEnum):
     MATCH = "MATCH"
     MISMATCH = "MISMATCH"
@@ -140,6 +147,8 @@ class FieldComparison(BaseModel):
     si: ExtractedField | None
     bl: ExtractedField | None
     reason: str
+    comparison_method: ComparisonMethod | None = None
+    equivalence_reason: str | None = None
 
 
 class ComparisonResult(BaseModel):

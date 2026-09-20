@@ -13,6 +13,7 @@ from app.models import (
 from app.services.classifier import classify_email
 from app.services.document_pair import (
     AIDocumentService,
+    SemanticAIService,
     compare_document_pair_with_ai_fallback,
 )
 
@@ -31,10 +32,12 @@ class CaseProcessor:
         inbox: InboxProtocol,
         concurrency: int = 12,
         ai_service: AIDocumentService | None = None,
+        semantic_ai_service: SemanticAIService | None = None,
     ) -> None:
         self.inbox = inbox
         self._semaphore = asyncio.Semaphore(concurrency)
         self.ai_service = ai_service
+        self.semantic_ai_service = semantic_ai_service
 
     async def process_all(self) -> list[CaseRecord]:
         emails = await self.inbox.list_emails()
@@ -67,6 +70,7 @@ class CaseProcessor:
                 bl_path,
                 bl_content,
                 self.ai_service,
+                self.semantic_ai_service,
             )
             return CaseRecord(
                 email=email,

@@ -20,6 +20,20 @@ class DocumentType(StrEnum):
     UNKNOWN = "UNKNOWN"
 
 
+class SemanticDecision(StrEnum):
+    EQUIVALENT = "EQUIVALENT"
+    DIFFERENT = "DIFFERENT"
+    UNCERTAIN = "UNCERTAIN"
+
+
+class SemanticEquivalenceResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision: SemanticDecision
+    canonical_value: str | None
+    reason: str
+
+
 class RawField(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

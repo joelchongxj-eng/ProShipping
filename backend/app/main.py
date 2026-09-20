@@ -40,8 +40,16 @@ app.add_middleware(
 )
 
 inbox = InboxClient(os.getenv("INBOX_BASE_URL", "http://localhost:8080"))
-ai_service = AIService() if os.getenv("AI_ENABLED", "0") == "1" else None
-processor = CaseProcessor(inbox, ai_service=ai_service)
+_document_ai_enabled = os.getenv("AI_ENABLED", "0") == "1"
+_semantic_ai_enabled = os.getenv("SEMANTIC_AI_ENABLED", "0") == "1"
+_shared_ai_service = AIService() if _document_ai_enabled or _semantic_ai_enabled else None
+ai_service = _shared_ai_service if _document_ai_enabled else None
+semantic_ai_service = _shared_ai_service if _semantic_ai_enabled else None
+processor = CaseProcessor(
+    inbox,
+    ai_service=ai_service,
+    semantic_ai_service=semantic_ai_service,
+)
 cases: dict[str, CaseRecord] = {}
 upload_store = UploadComparisonStore(
     ttl_seconds=int(os.getenv("UPLOAD_TTL_SECONDS", "3600")),
@@ -57,6 +65,7 @@ retry_execution_service = RetryExecutionService(
     case_lookup=lambda email_id: cases.get(email_id),
     upload_session_lookup=upload_store.get,
     ai_service_lookup=lambda: ai_service,
+    semantic_ai_service_lookup=lambda: semantic_ai_service,
 )
 human_review_service = HumanReviewService(
     human_review_store,
@@ -186,6 +195,7 @@ async def compare_upload(
         bl_source_filename,
         bl_content,
         ai_service,
+        semantic_ai_service,
     )
     si_attachment_url = (
         f"/api/upload-comparisons/{comparison_id}/attachments/si"

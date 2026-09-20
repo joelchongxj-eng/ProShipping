@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from app.models import EmailCategory, EmailRecord
+from app.services.ai_models import SemanticDecision
 from app.services.ai_service import AIService, AIResponseError
 
 
@@ -229,3 +230,30 @@ async def test_vision_refuses_empty_transcription():
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     with pytest.raises(AIResponseError, match="unreadable"):
         await AIService("test-key", client=client).transcribe_image(b"\x89PNG", "image/png")
+
+
+@pytest.mark.asyncio
+async def test_semantic_comparison_uses_strict_bounded_output():
+    captured = {}
+
+    def handler(request):
+        captured.update(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({
+            "decision": "EQUIVALENT",
+            "canonical_value": "BUSAN",
+            "reason": "Same port with a country qualifier.",
+        })}}]})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    result = await AIService("test-key", client=client).compare_semantic(
+        "port_of_loading",
+        "BUSAN, KOREA",
+        "BUSAN",
+    )
+    await client.aclose()
+
+    assert result.decision is SemanticDecision.EQUIVALENT
+    assert captured["response_format"]["json_schema"]["strict"] is True
+    prompt = captured["messages"][0]["content"]
+    assert "identity/equivalence" in prompt
+    assert "UNCERTAIN" in prompt

@@ -6,14 +6,21 @@ from pypdf.errors import PdfReadError
 
 from app.models import (
     CaseStatus,
+    ComparisonMethod,
     DocumentPairResult,
     ExtractedField,
+    FieldComparison,
     FieldStatus,
     ReviewReason,
     ShippingFields,
     SourceLocation,
 )
-from app.services.ai_models import DocumentType, ExtractedDocument
+from app.services.ai_models import (
+    DocumentType,
+    ExtractedDocument,
+    SemanticDecision,
+    SemanticEquivalenceResult,
+)
 from app.services.ai_service import AIResponseError, GroqRequestError
 from app.services.comparison import compare_documents
 from app.services.document_reader import (
@@ -26,6 +33,7 @@ from app.services.document_text import (
     attachment_text_with_vision,
 )
 from app.services.text_extractor import extract_shipping_fields
+from app.services.semantic_equivalence import SEMANTIC_TEXT_FIELDS
 
 
 WRONG_DOCUMENT_TITLES = {
@@ -43,6 +51,15 @@ class AIDocumentService(Protocol):
     async def transcribe_image(self, image: bytes, mime_type: str) -> str: ...
 
     async def extract_text(self, text: str, filename: str) -> ExtractedDocument: ...
+
+
+class SemanticAIService(Protocol):
+    async def compare_semantic(
+        self,
+        field: str,
+        si_value: str,
+        bl_value: str,
+    ) -> SemanticEquivalenceResult: ...
 
 
 def is_wrong_document_type(text: str) -> bool:
@@ -90,6 +107,63 @@ def _compare_fields(
         bl_fields=bl_fields,
         comparison=comparison.fields,
         review_reason=review_reason,
+    )
+
+
+def _status_for_fields(fields: list[FieldComparison]) -> CaseStatus:
+    statuses = {item.status for item in fields}
+    if FieldStatus.MISMATCH in statuses:
+        return CaseStatus.MISMATCH
+    if FieldStatus.MISSING in statuses or FieldStatus.NEEDS_REVIEW in statuses:
+        return CaseStatus.NEEDS_REVIEW
+    return CaseStatus.MATCH
+
+
+async def _resolve_semantic_mismatches(
+    result: DocumentPairResult,
+    semantic_ai_service: SemanticAIService | None,
+) -> DocumentPairResult:
+    if semantic_ai_service is None or not result.comparison:
+        return result
+    resolved = list(result.comparison)
+    for index, item in enumerate(resolved):
+        if (
+            item.status is not FieldStatus.MISMATCH
+            or item.field not in SEMANTIC_TEXT_FIELDS
+            or item.si is None
+            or item.bl is None
+        ):
+            continue
+        try:
+            decision = await semantic_ai_service.compare_semantic(
+                item.field,
+                item.si.raw_value,
+                item.bl.raw_value,
+            )
+        except (AIResponseError, GroqRequestError, httpx.HTTPError, TimeoutError):
+            continue
+        if decision.decision is SemanticDecision.EQUIVALENT:
+            resolved[index] = item.model_copy(
+                update={
+                    "status": FieldStatus.MATCH,
+                    "reason": decision.reason,
+                    "comparison_method": ComparisonMethod.SEMANTIC_AI,
+                    "equivalence_reason": decision.reason,
+                }
+            )
+        elif decision.decision is SemanticDecision.DIFFERENT:
+            resolved[index] = item.model_copy(
+                update={
+                    "reason": decision.reason,
+                    "comparison_method": ComparisonMethod.SEMANTIC_AI,
+                    "equivalence_reason": None,
+                }
+            )
+    return result.model_copy(
+        update={
+            "status": _status_for_fields(resolved),
+            "comparison": resolved,
+        }
     )
 
 
@@ -188,13 +262,17 @@ async def compare_document_pair_with_ai_fallback(
     bl_filename: str,
     bl_content: bytes,
     ai_service: AIDocumentService | None = None,
+    semantic_ai_service: SemanticAIService | None = None,
 ) -> DocumentPairResult:
     if ai_service is None:
-        return compare_document_pair(
-            si_filename,
-            si_content,
-            bl_filename,
-            bl_content,
+        return await _resolve_semantic_mismatches(
+            compare_document_pair(
+                si_filename,
+                si_content,
+                bl_filename,
+                bl_content,
+            ),
+            semantic_ai_service,
         )
 
     try:
@@ -247,4 +325,7 @@ async def compare_document_pair_with_ai_fallback(
     ):
         return _unreadable_result()
 
-    return _compare_fields(si_fields, bl_fields)
+    return await _resolve_semantic_mismatches(
+        _compare_fields(si_fields, bl_fields),
+        semantic_ai_service,
+    )
