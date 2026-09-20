@@ -16,6 +16,8 @@ from app.models import (
     UploadedFileReference,
 )
 from app.reviews.router import create_review_router
+from app.reviews.escalation import EscalationStore
+from app.reviews.escalation_service import EscalationService
 from app.reviews.retry import RetryExecutionStore
 from app.reviews.retry_service import RetryExecutionService
 from app.reviews.service import HumanReviewService
@@ -45,6 +47,8 @@ upload_store = UploadComparisonStore(
     max_upload_bytes=int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024))),
 )
 human_review_store = HumanReviewStore()
+escalation_store = EscalationStore()
+escalation_service = EscalationService(escalation_store)
 retry_execution_store = RetryExecutionStore()
 retry_execution_service = RetryExecutionService(
     retry_execution_store,
@@ -64,10 +68,15 @@ human_review_service = HumanReviewService(
     retry_upload_lookup=retry_execution_service.registered_upload,
 )
 app.include_router(
-    create_review_router(human_review_service, retry_execution_service)
+    create_review_router(
+        human_review_service,
+        retry_execution_service,
+        escalation_service,
+    )
 )
 app.router.add_event_handler("shutdown", upload_store.close)
 app.router.add_event_handler("shutdown", human_review_store.clear)
+app.router.add_event_handler("shutdown", escalation_store.clear)
 app.router.add_event_handler("shutdown", retry_execution_store.clear)
 app.router.add_event_handler(
     "shutdown",

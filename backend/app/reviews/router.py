@@ -1,5 +1,12 @@
+from uuid import UUID
+
 from fastapi import APIRouter, HTTPException
 
+from app.reviews.escalation import (
+    EscalationAssignment,
+    EscalationAssignmentHistory,
+)
+from app.reviews.escalation_service import EscalationError, EscalationService
 from app.reviews.models import (
     CreateHumanReviewRequest,
     HumanReviewHistory,
@@ -16,6 +23,7 @@ from app.reviews.service import HumanReviewError, HumanReviewService
 def create_review_router(
     service: HumanReviewService,
     retry_service: RetryExecutionService,
+    escalation_service: EscalationService,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -30,6 +38,8 @@ def create_review_router(
             raise HTTPException(exc.status_code, exc.detail) from exc
         if request.action is ReviewAction.RETRY:
             await retry_service.execute(review)
+        if request.action is ReviewAction.ESCALATE:
+            await escalation_service.create(review, request)
         return review
 
     def get_history(
@@ -58,6 +68,12 @@ def create_review_router(
             return retry_service.history(target_type, target_id)
         except RetryExecutionError as exc:
             raise HTTPException(exc.status_code, exc.detail) from exc
+
+    def get_escalations(
+        target_type: ReviewTargetType,
+        target_id: str,
+    ) -> EscalationAssignmentHistory:
+        return escalation_service.history(target_type, target_id)
 
     @router.post(
         "/api/cases/{target_id}/reviews",
@@ -95,6 +111,13 @@ def create_review_router(
     def get_case_retry_attempts(target_id: str) -> RetryAttemptHistory:
         return get_retry_attempts(ReviewTargetType.COMPETITION_CASE, target_id)
 
+    @router.get(
+        "/api/cases/{target_id}/escalations",
+        response_model=EscalationAssignmentHistory,
+    )
+    def get_case_escalations(target_id: str) -> EscalationAssignmentHistory:
+        return get_escalations(ReviewTargetType.COMPETITION_CASE, target_id)
+
     @router.post(
         "/api/upload-comparisons/{target_id}/reviews",
         response_model=HumanReviewRecord,
@@ -130,5 +153,22 @@ def create_review_router(
     )
     def get_upload_retry_attempts(target_id: str) -> RetryAttemptHistory:
         return get_retry_attempts(ReviewTargetType.UPLOAD_COMPARISON, target_id)
+
+    @router.get(
+        "/api/upload-comparisons/{target_id}/escalations",
+        response_model=EscalationAssignmentHistory,
+    )
+    def get_upload_escalations(target_id: str) -> EscalationAssignmentHistory:
+        return get_escalations(ReviewTargetType.UPLOAD_COMPARISON, target_id)
+
+    @router.post(
+        "/api/escalations/{assignment_id}/resend",
+        response_model=EscalationAssignment,
+    )
+    async def resend_escalation(assignment_id: UUID) -> EscalationAssignment:
+        try:
+            return await escalation_service.resend(assignment_id)
+        except EscalationError as exc:
+            raise HTTPException(exc.status_code, exc.detail) from exc
 
     return router

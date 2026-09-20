@@ -236,11 +236,31 @@ class HumanReviewService:
                 )
             if not self._clean(request.escalation_reason):
                 raise HumanReviewError(422, "ESCALATE requires escalation_reason.")
+            if request.scope is not ReviewScope.FIELD or request.field is None:
+                raise HumanReviewError(422, "ESCALATE requires field scope.")
+            if request.side is not ReviewSide.BOTH:
+                raise HumanReviewError(422, "ESCALATE requires side BOTH.")
+            if not self._clean(request.reviewer_action):
+                raise HumanReviewError(422, "ESCALATE requires reviewer_action.")
+            if not self._clean(request.requested_decision):
+                raise HumanReviewError(422, "ESCALATE requires requested_decision.")
         elif request.escalation_reason is not None:
             raise HumanReviewError(
                 422,
                 "escalation_reason is only valid for ESCALATE.",
             )
+
+        if request.action is not ReviewAction.ESCALATE:
+            if request.reviewer_action is not None:
+                raise HumanReviewError(
+                    422,
+                    "reviewer_action is only valid for ESCALATE.",
+                )
+            if request.requested_decision is not None:
+                raise HumanReviewError(
+                    422,
+                    "requested_decision is only valid for ESCALATE.",
+                )
 
         if request.action is ReviewAction.EQUIVALENT:
             if request.scope is not ReviewScope.FIELD or request.side is not ReviewSide.BOTH:

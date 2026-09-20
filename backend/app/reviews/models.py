@@ -62,6 +62,8 @@ class CreateHumanReviewRequest(BaseModel):
     corrected_value: str | None = None
     note: str | None = None
     escalation_reason: str | None = None
+    reviewer_action: str | None = None
+    requested_decision: str | None = None
 
 
 class NewHumanReviewRecord(BaseModel):

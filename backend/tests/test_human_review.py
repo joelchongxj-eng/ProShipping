@@ -54,10 +54,12 @@ def seed_case(email_id: str, bl_content: bytes) -> CaseRecord:
 def clear_review_state() -> None:
     main.cases.clear()
     main.human_review_store.clear()
+    main.escalation_store.clear()
     main.upload_store.clear()
     yield
     main.cases.clear()
     main.human_review_store.clear()
+    main.escalation_store.clear()
     main.upload_store.clear()
 
 
@@ -125,7 +127,12 @@ def test_latest_correction_becomes_persistent_effective_value() -> None:
         ("RETRY", {}, "RETRY_REQUESTED"),
         (
             "ESCALATE",
-            {"escalation_reason": "Supervisor decision required."},
+            {
+                "side": "BOTH",
+                "escalation_reason": "Supervisor decision required.",
+                "reviewer_action": "Verified the corrected value.",
+                "requested_decision": "Approve the corrected value.",
+            },
             "ESCALATED",
         ),
     ),
@@ -204,9 +211,13 @@ def test_needs_review_supports_unreadable_retry_escalate_and_confirm() -> None:
         },
         {"scope": "CASE", "action": "RETRY"},
         {
-            "scope": "CASE",
+            "scope": "FIELD",
+            "field": "notify_party",
+            "side": "BOTH",
             "action": "ESCALATE",
             "escalation_reason": "Missing notify party requires a decision.",
+            "reviewer_action": "Checked the available SI and BL values.",
+            "requested_decision": "Confirm how to handle the missing BL value.",
         },
         {"scope": "CASE", "action": "CONFIRM"},
     )
@@ -515,6 +526,8 @@ def test_escalation_note_preserves_active_escalation_and_resolution_keeps_histor
             **target,
             "action": "ESCALATE",
             "escalation_reason": "Supervisor must approve the weight difference.",
+            "reviewer_action": "Rechecked both document values.",
+            "requested_decision": "Choose the approved gross weight.",
         },
     )
     noted = client.post(
@@ -662,6 +675,8 @@ def test_summary_uses_the_most_recent_active_escalation() -> None:
             **gross_weight,
             "action": "ESCALATE",
             "escalation_reason": "First weight escalation.",
+            "reviewer_action": "Checked the weight evidence.",
+            "requested_decision": "Choose the correct weight.",
         },
     )
     client.post(
@@ -670,6 +685,8 @@ def test_summary_uses_the_most_recent_active_escalation() -> None:
             **shipper,
             "action": "ESCALATE",
             "escalation_reason": "Shipper escalation.",
+            "reviewer_action": "Checked the shipper evidence.",
+            "requested_decision": "Choose the correct shipper.",
         },
     )
     client.post(
@@ -682,6 +699,8 @@ def test_summary_uses_the_most_recent_active_escalation() -> None:
             **gross_weight,
             "action": "ESCALATE",
             "escalation_reason": "Newest weight escalation.",
+            "reviewer_action": "Rechecked the latest evidence.",
+            "requested_decision": "Approve the latest weight decision.",
         },
     )
 
