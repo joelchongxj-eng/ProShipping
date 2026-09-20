@@ -1,13 +1,12 @@
-import type { VerificationCase } from "@/types/verification";
+import type { ReviewReason, VerificationCase } from "@/types/verification";
 
 // Display groups only: these do not change a case's backend-supplied status.
-export type BoardGroup = "matched" | "mismatch" | "needs_review" | "missing_information" | "failed";
+export type BoardGroup = "matched" | "mismatch" | "needs_review" | "failed";
 
 export const boardSections: { key: BoardGroup; label: string }[] = [
   { key: "matched", label: "Matched" },
   { key: "mismatch", label: "Mismatch" },
   { key: "needs_review", label: "Needs Review" },
-  { key: "missing_information", label: "Missing Information" },
   { key: "failed", label: "Failed" },
 ];
 
@@ -15,7 +14,6 @@ export const statusStyles: Record<BoardGroup, string> = {
   matched: "border-green-200 bg-green-50 text-green-800",
   mismatch: "border-red-200 bg-red-50 text-red-800",
   needs_review: "border-yellow-300 bg-yellow-50 text-yellow-900",
-  missing_information: "border-gray-300 bg-gray-100 text-gray-700",
   failed: "border-black bg-black text-white",
 };
 
@@ -34,26 +32,59 @@ export function groupCases(cases: VerificationCase[]): Record<BoardGroup, Verifi
     matched: comparisons.filter((item) => item.status === "MATCH"),
     mismatch: comparisons.filter((item) => item.status === "MISMATCH"),
     needs_review: comparisons.filter((item) => item.status === "NEEDS_REVIEW"),
-    missing_information: comparisons.filter(
-      (item) => item.status === "NEEDS_REVIEW" && (item.review_reason === "missing_attachment" || item.review_reason === "missing_value"),
-    ),
     failed: comparisons.filter((item) => item.status === "FAILED"),
   };
 }
 
+export function countReviewReasons(cases: VerificationCase[]): Record<ReviewReason, number> {
+  const groups = groupReviewReasonCases(cases);
+  return {
+    missing_attachment: groups.missing_attachment.length,
+    missing_value: groups.missing_value.length,
+    unreadable: groups.unreadable.length,
+    wrong_doc_type: groups.wrong_doc_type.length,
+    low_confidence_extraction: groups.low_confidence_extraction.length,
+  };
+}
+
+export function groupReviewReasonCases(cases: VerificationCase[]): Record<ReviewReason, VerificationCase[]> {
+  return {
+    missing_attachment: cases.filter((item) => item.status === "NEEDS_REVIEW" && item.review_reason === "missing_attachment"),
+    missing_value: cases.filter((item) => item.status === "NEEDS_REVIEW" && item.review_reason === "missing_value"),
+    unreadable: cases.filter((item) => item.status === "NEEDS_REVIEW" && item.review_reason === "unreadable"),
+    wrong_doc_type: cases.filter((item) => item.status === "NEEDS_REVIEW" && item.review_reason === "wrong_doc_type"),
+    low_confidence_extraction: cases.filter((item) => item.status === "NEEDS_REVIEW" && item.review_reason === "low_confidence_extraction"),
+  };
+}
+
 export const caseListRoutes: Record<BoardGroup, string> = {
-  matched: "/cases?status=matched",
-  mismatch: "/cases?status=mismatch",
-  needs_review: "/cases?status=needs_review",
-  missing_information: "/cases?field_status=missing",
-  failed: "/cases?status=failed",
+  matched: "/cases?status=MATCH",
+  mismatch: "/cases?status=MISMATCH",
+  needs_review: "/cases?status=NEEDS_REVIEW",
+  failed: "/cases?status=FAILED",
 };
 
-export function resolveCaseFilter(params: Record<string, string | string[] | undefined>): BoardGroup | "all" | "invalid" {
-  const { status, field_status } = params;
-  if (Object.keys(params).some((key) => key !== "status" && key !== "field_status")) return "invalid";
-  if (status !== undefined && field_status !== undefined) return "invalid";
-  if (field_status !== undefined) return field_status === "missing" ? "missing_information" : "invalid";
-  if (status === undefined) return "all";
-  return status === "matched" || status === "mismatch" || status === "needs_review" || status === "failed" ? status : "invalid";
+export type CaseFilter = { group: BoardGroup | "all"; reviewReason?: ReviewReason };
+
+export function resolveCaseFilter(params: Record<string, string | string[] | undefined>): CaseFilter | "invalid" {
+  const { status, review_reason } = params;
+  if (Object.keys(params).some((key) => key !== "status" && key !== "review_reason")) return "invalid";
+  if (Array.isArray(status) || Array.isArray(review_reason)) return "invalid";
+  const normalizedStatus = status?.toUpperCase();
+  if (review_reason && normalizedStatus !== "NEEDS_REVIEW") return "invalid";
+  const group = normalizedStatus === undefined ? "all"
+    : normalizedStatus === "MATCH" ? "matched"
+      : normalizedStatus === "MISMATCH" ? "mismatch"
+        : normalizedStatus === "NEEDS_REVIEW" ? "needs_review"
+          : normalizedStatus === "FAILED" ? "failed"
+            : null;
+  if (!group) return "invalid";
+  const validReasons: ReviewReason[] = ["missing_attachment", "missing_value", "unreadable", "wrong_doc_type", "low_confidence_extraction"];
+  if (review_reason && !validReasons.includes(review_reason as ReviewReason)) return "invalid";
+  return { group, reviewReason: review_reason as ReviewReason | undefined };
+}
+
+export function filterCases(cases: VerificationCase[], filter: CaseFilter): VerificationCase[] {
+  const grouped = filter.group === "all" ? cases : groupCases(cases)[filter.group];
+  return filter.reviewReason ? grouped.filter((item) => item.review_reason === filter.reviewReason) : grouped;
 }

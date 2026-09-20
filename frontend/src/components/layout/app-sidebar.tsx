@@ -7,6 +7,7 @@ const navigation = [
   { href: "/", label: "Dashboard" },
   { href: "/inbox", label: "Inbox" },
   { href: "/review", label: "Human Review" },
+  { href: "/upload", label: "Manual Upload" },
   { href: "/submission", label: "Submission" },
 ];
 

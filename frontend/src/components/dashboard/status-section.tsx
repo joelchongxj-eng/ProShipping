@@ -19,7 +19,7 @@ export function StatusSection({ group, title, cases }: { group: BoardGroup; titl
       </div>
       {cases.length > 0 ? (
         <div className="relative min-h-0 flex-1 overflow-hidden">
-          <ul className="divide-y divide-slate-100">{cases.slice(0, PREVIEW_LIMIT).map((item) => <CaseRow key={item.email.email_id} item={item} compact />)}</ul>
+          <ul className="divide-y divide-slate-100">{cases.slice(0, PREVIEW_LIMIT).map((item) => <CaseRow key={item.email.email_id} item={item} returnTo="/" compact />)}</ul>
           {remaining > 0 && <div aria-hidden="true" data-preview-fade className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-linear-to-b from-transparent to-white" />}
         </div>
       ) : <p className="flex-1 px-4 py-4 text-sm text-slate-500">No cases</p>}

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadCase } from "@/lib/cases";
 import { isMockMode } from "@/lib/config";
@@ -8,21 +7,32 @@ import { ApiErrorState } from "@/components/api-error-state";
 import { StatusBadge } from "@/components/status-badge";
 import { CaseComparison } from "@/components/cases/case-comparison";
 import { getCategoryLabel } from "@/components/inbox/inbox-filters";
-import { getReviewReasonDisplay } from "@/lib/review-reason";
+import { getReviewReasonDisplay, reviewReasonDisplays, reviewReasons } from "@/lib/review-reason";
+import type { ReviewReason } from "@/types/verification";
+import { BackLink } from "@/components/navigation/back-link";
+import { buildCaseDetailHref, getCaseReturnLabel, resolveCaseReturnHref } from "@/lib/case-navigation";
+import { HumanReviewPanel } from "@/components/review/human-review-panel";
 
 export const dynamic = "force-dynamic";
-type Props = { params: Promise<{ emailId: string }> };
+type Props = {
+  params: Promise<{ emailId: string }>;
+  searchParams: Promise<{ from?: string | string[] }>;
+};
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: `Case ${(await params).emailId}` };
 }
 
-export default async function CasePage({ params }: Props) {
+export default async function CasePage({ params, searchParams }: Props) {
   const { emailId } = await params;
+  const returnHref = resolveCaseReturnHref((await searchParams).from);
+  const returnLabel = getCaseReturnLabel(returnHref, (value) => (
+    reviewReasons.includes(value as ReviewReason) ? reviewReasonDisplays[value as ReviewReason].label : undefined
+  ));
   let item;
   try { item = await loadCase(emailId); } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
-    return <ApiErrorState error={error} retryHref={`/cases/${encodeURIComponent(emailId)}`} />;
+    return <ApiErrorState error={error} retryHref={buildCaseDetailHref(emailId, returnHref)} backHref={returnHref} backLabel={returnLabel} />;
   }
   const metadata = isMockMode ? (await import("@/data/mock-case-metadata")).mock_case_metadata[emailId] : undefined;
   const isComparison = item.category === "BL_COMPARISON";
@@ -30,9 +40,9 @@ export default async function CasePage({ params }: Props) {
 
   return (
     <div className="space-y-5">
-      <Link href="/" className="text-sm text-slate-600 underline underline-offset-4">Back to Dashboard</Link>
+      <BackLink href={returnHref}>{returnLabel}</BackLink>
       <header>
-        <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold tracking-tight">Case {metadata?.display_id ?? item.email.email_id}</h1>{isComparison && <StatusBadge status={item.status} />}</div>
+        <div className="flex flex-wrap items-center gap-3"><h1 className="text-xl font-semibold tracking-tight">Case {metadata?.display_id ?? item.email.email_id}</h1>{isComparison && <><span className="text-xs font-medium text-slate-500">Automated Status</span><StatusBadge status={item.status} /></>}</div>
         <p className="mt-2 break-words text-sm text-slate-700">{item.email.subject}</p>
       </header>
       <dl aria-label="Email information" className="flex flex-wrap gap-x-8 gap-y-3 border-y border-slate-200 py-3 text-xs">
@@ -49,6 +59,7 @@ export default async function CasePage({ params }: Props) {
             </section>
           )}
           {item.status === "FAILED" && <div className="border-l-2 border-black bg-gray-100 px-3 py-3"><h2 className="text-sm font-semibold">Processing failed</h2><p className="mt-1 text-sm text-slate-700">Verification is incomplete. Only available extraction data is shown below; unavailable values are not comparison results.</p></div>}
+          <HumanReviewPanel item={item} />
           <CaseComparison key={item.email.email_id} item={item} mockMode={isMockMode} />
         </>
       )}

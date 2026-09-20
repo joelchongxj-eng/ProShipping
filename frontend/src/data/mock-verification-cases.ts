@@ -373,6 +373,7 @@ export const mock_verification_cases: VerificationCase[] = [
     },
     "category": "BL_COMPARISON",
     "status": "NEEDS_REVIEW",
+    "review_reason": "low_confidence_extraction",
     "si_attachment": "/demo-documents/PS-DEMO-003-SI.pdf",
     "bl_attachment": "/demo-documents/PS-DEMO-003-BL.pdf",
     "comparison": [
@@ -1626,6 +1627,7 @@ export const mock_verification_cases: VerificationCase[] = [
     },
     "category": "BL_COMPARISON",
     "status": "NEEDS_REVIEW",
+    "review_reason": "unreadable",
     "si_attachment": "/demo-documents/PS-DEMO-010-SI.pdf",
     "bl_attachment": "/demo-documents/PS-DEMO-010-BL.pdf",
     "comparison": [
@@ -1805,6 +1807,7 @@ export const mock_verification_cases: VerificationCase[] = [
     },
     "category": "BL_COMPARISON",
     "status": "NEEDS_REVIEW",
+    "review_reason": "wrong_doc_type",
     "si_attachment": "/demo-documents/PS-DEMO-011-SI.pdf",
     "bl_attachment": "/demo-documents/PS-DEMO-011-BL.pdf",
     "comparison": [
@@ -1975,17 +1978,17 @@ export const mock_verification_cases: VerificationCase[] = [
     "email": {
       "email_id": "email_demo_012",
       "from": "shipping@mutiararubber.example",
-      "subject": "Scanned draft BL verification - PEN-LCH-260912",
-      "body": "Synthetic demo email. Please verify the attached SI and draft BL.",
+      "subject": "Draft BL attachment missing - PEN-LCH-260912",
+      "body": "Synthetic demo email. The SI is attached, but the draft BL attachment is missing.",
       "attachments": [
-        "/demo-documents/PS-DEMO-012-SI.pdf",
-        "/demo-documents/PS-DEMO-012-BL.pdf"
+        "/demo-documents/PS-DEMO-012-SI.pdf"
       ]
     },
     "category": "BL_COMPARISON",
     "status": "NEEDS_REVIEW",
+    "review_reason": "missing_attachment",
     "si_attachment": "/demo-documents/PS-DEMO-012-SI.pdf",
-    "bl_attachment": "/demo-documents/PS-DEMO-012-BL.pdf",
+    "bl_attachment": null,
     "comparison": [
       {
         "field": "shipper",
@@ -2163,6 +2166,7 @@ export const mock_verification_cases: VerificationCase[] = [
     },
     "category": "BL_COMPARISON",
     "status": "NEEDS_REVIEW",
+    "review_reason": "missing_value",
     "si_attachment": "/demo-documents/PS-DEMO-013-SI.pdf",
     "bl_attachment": "/demo-documents/PS-DEMO-013-BL.pdf",
     "comparison": [

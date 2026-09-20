@@ -1,23 +1,35 @@
 import type { ReviewReason } from "@/types/verification";
 
-const reviewReasonDisplays: Record<ReviewReason, { label: string; message: string }> = {
+export const reviewReasonDisplays: Record<ReviewReason, { label: string; message: string }> = {
   missing_attachment: {
-    label: "Missing attachment",
+    label: "Missing Attachment",
     message: "Required SI or BL attachment is missing.",
   },
   unreadable: {
-    label: "Unreadable document",
+    label: "Unreadable Document",
     message: "The document could not be read reliably.",
   },
   wrong_doc_type: {
-    label: "Wrong document type",
+    label: "Wrong Document Type",
     message: "The attachment is not a valid SI or Draft BL.",
   },
   missing_value: {
-    label: "Missing value",
+    label: "Missing Value",
     message: "One or more required fields could not be extracted.",
   },
+  low_confidence_extraction: {
+    label: "Low-confidence Extraction",
+    message: "One or more document fields could not be read with sufficient confidence.",
+  },
 };
+
+export const reviewReasons: ReviewReason[] = [
+  "missing_attachment",
+  "missing_value",
+  "unreadable",
+  "wrong_doc_type",
+  "low_confidence_extraction",
+];
 
 export function getReviewReasonDisplay(reviewReason: ReviewReason | null | undefined) {
   return reviewReason ? reviewReasonDisplays[reviewReason] : {

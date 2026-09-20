@@ -3,8 +3,10 @@ import Link from "next/link";
 import { loadCases } from "@/lib/cases";
 import { isMockMode } from "@/lib/config";
 import { ApiErrorState } from "@/components/api-error-state";
-import { CaseRow } from "@/components/dashboard/case-row";
-import { boardSections, groupCases, resolveCaseFilter } from "@/components/dashboard/dashboard-data";
+import { boardSections, filterCases, resolveCaseFilter } from "@/components/dashboard/dashboard-data";
+import { getReviewReasonDisplay } from "@/lib/review-reason";
+import { BackLink } from "@/components/navigation/back-link";
+import { FilteredCaseList } from "@/components/cases/filtered-case-list";
 
 export const metadata: Metadata = { title: "Cases" };
 export const dynamic = "force-dynamic";
@@ -12,26 +14,30 @@ export const dynamic = "force-dynamic";
 type SearchParams = Record<string, string | string[] | undefined>;
 
 export default async function CasesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const filter = resolveCaseFilter(await searchParams);
+  const resolvedSearchParams = await searchParams;
+  const filter = resolveCaseFilter(resolvedSearchParams);
   let allCases;
   try { allCases = filter === "invalid" ? [] : (await loadCases()).filter((item) => item.category === "BL_COMPARISON"); } catch (error) {
     return <ApiErrorState error={error} retryHref="/cases" />;
   }
-  const cases = filter === "invalid" ? [] : filter === "all" ? allCases : groupCases(allCases)[filter];
-  const title = filter === "invalid" ? "Invalid case filter" : filter === "all" ? "All Cases" : `${boardSections.find((section) => section.key === filter)?.label} Cases`;
+  const cases = filter === "invalid" ? [] : filterCases(allCases, filter);
+  const title = filter === "invalid" ? "Invalid case filter"
+    : filter.reviewReason ? `${getReviewReasonDisplay(filter.reviewReason).label} Cases`
+      : filter.group === "all" ? "All Cases"
+        : `${boardSections.find((section) => section.key === filter.group)?.label} Cases`;
 
   return (
     <div className="space-y-4">
-      <Link href="/" className="text-sm text-slate-600 underline underline-offset-4">Back to Dashboard</Link>
+      <BackLink href="/">Back to Dashboard</BackLink>
       <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{title}</h1>
       {filter === "invalid" ? (
-        <p className="text-sm text-slate-600">Choose one supported status or field_status=missing. <Link href="/cases" className="underline">View all cases</Link>.</p>
+        <p className="text-sm text-slate-600">Choose a supported status and, for Needs Review, an optional review reason. <Link href="/cases" className="underline">View all cases</Link>.</p>
       ) : (
         <>
           <p className="text-sm text-slate-600">{cases.length} matching case{cases.length === 1 ? "" : "s"} · {isMockMode ? "Demo data" : "Backend data"}</p>
-          {filter === "needs_review" && <p className="text-xs text-slate-500">All cases flagged by the backend for human review are shown here. <Link href="/cases?field_status=missing" className="underline">Missing Information</Link> is a focused view of missing attachments and values.</p>}
+          {filter.group === "needs_review" && <p className="text-xs text-slate-500">{filter.reviewReason ? `Filtered by backend review reason: ${getReviewReasonDisplay(filter.reviewReason).label}.` : "All cases flagged by the backend for human review are shown here."}</p>}
           <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-            {cases.length > 0 ? <ul aria-label="Matching cases" className="divide-y divide-slate-200">{cases.map((item) => <CaseRow key={item.email.email_id} item={item} />)}</ul> : <p className="px-4 py-4 text-sm text-slate-500">No cases</p>}
+            {cases.length > 0 ? <FilteredCaseList cases={cases} /> : <p className="px-4 py-4 text-sm text-slate-500">No cases</p>}
           </div>
         </>
       )}

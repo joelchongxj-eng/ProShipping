@@ -121,10 +121,7 @@ export const mock_document_sources: Record<string, { si: MockDocumentSource | nu
       "url": "/demo-documents/PS-DEMO-012-SI.pdf",
       "filename": "PS-DEMO-012-SI.pdf"
     },
-    "bl": {
-      "url": "/demo-documents/PS-DEMO-012-BL.pdf",
-      "filename": "PS-DEMO-012-BL.pdf"
-    }
+    "bl": null
   },
   "email_demo_013": {
     "si": {

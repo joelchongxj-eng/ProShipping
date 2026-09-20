@@ -1,4 +1,4 @@
-import type { EmailCategory, EmailProcessingStatus, InboxEmail } from "@/types/inbox";
+import type { EmailCategory, InboxDisplayRow } from "@/types/inbox";
 
 export const categoryLabels: Record<EmailCategory, string> = {
   BL_COMPARISON: "BL Comparison",
@@ -15,19 +15,17 @@ export function getCategoryLabel(category: unknown): string {
     : "Unknown";
 }
 
-export const processingLabels: Record<EmailProcessingStatus, string> = { classified: "Classified", processed: "Processed", needs_review: "Needs Review", failed: "Failed" };
-export const CLASSIFICATION_REVIEW_THRESHOLD = 0.80;
-export type CategoryFilter = EmailCategory | "all" | "uncertain";
+export const MOCK_CLASSIFICATION_REVIEW_THRESHOLD = 0.80;
+export type CategoryFilter = EmailCategory | "all";
 export type ConfidenceFilter = "all" | "high" | "medium" | "low";
-export interface InboxFilters { category: CategoryFilter; date: string; status: EmailProcessingStatus | "all"; confidence: ConfidenceFilter }
-export const defaultFilters: InboxFilters = { category: "all", date: "all", status: "all", confidence: "all" };
+export interface InboxFilters { category: CategoryFilter; date: string; confidence: ConfidenceFilter }
+export const defaultFilters: InboxFilters = { category: "all", date: "all", confidence: "all" };
 
-export function filterEmails(emails: InboxEmail[], filters: InboxFilters): InboxEmail[] {
+export function filterEmails(emails: InboxDisplayRow[], filters: InboxFilters): InboxDisplayRow[] {
   return emails.filter((email) => {
-    const confidence = email.classification_confidence;
-    return (filters.category === "all" || (filters.category === "uncertain" ? confidence < CLASSIFICATION_REVIEW_THRESHOLD : email.category === filters.category))
-      && (filters.date === "all" || email.received_at.slice(0, 10) === filters.date)
-      && (filters.status === "all" || email.processing_status === filters.status)
+    const confidence = email.classification_confidence_mock;
+    return (filters.category === "all" || email.category === filters.category)
+      && (filters.date === "all" || email.received_at_mock.slice(0, 10) === filters.date)
       && (filters.confidence === "all" || (filters.confidence === "high" ? confidence >= 0.90 : filters.confidence === "medium" ? confidence >= 0.80 && confidence < 0.90 : confidence < 0.80));
   });
 }

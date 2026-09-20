@@ -5,8 +5,26 @@ import type { EmailCategory } from "./inbox";
  */
 export type CaseStatus = "MATCH" | "MISMATCH" | "NEEDS_REVIEW" | "FAILED";
 export type FieldStatus = "match" | "mismatch" | "needs_review" | "missing";
-export type ReviewReason = "wrong_doc_type" | "missing_attachment" | "unreadable" | "missing_value";
+export type ReviewReason =
+  | "missing_attachment"
+  | "missing_value"
+  | "unreadable"
+  | "wrong_doc_type"
+  | "low_confidence_extraction";
 export type ShippingField = "shipper" | "consignee" | "notify_party" | "port_of_loading" | "port_of_discharge" | "container_count" | "gross_weight_kg";
+
+export type SourceLocator =
+  | { kind: "txt"; line_number: number; start_char: number; end_char: number }
+  | { kind: "xlsx"; sheet_name: string; cell_address: string }
+  | { kind: "docx"; paragraph_index?: number | null; table_index?: number | null; row_index?: number | null; cell_index?: number | null; start_char?: number | null; end_char?: number | null }
+  | { kind: "pdf"; page: number; bbox: { x0: number; y0: number; x1: number; y1: number } };
+
+export interface SourceLocation {
+  filename: string;
+  page?: number | null;
+  evidence_text: string;
+  locator?: SourceLocator | null;
+}
 
 export interface EmailRecord {
   email_id: string;
@@ -26,6 +44,7 @@ export interface ExtractedField {
   confidence: number;
   page?: number | null;
   evidence: string;
+  source?: SourceLocation | null;
 }
 
 export interface FieldComparison {

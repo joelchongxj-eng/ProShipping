@@ -5,18 +5,17 @@ export type EmailCategory =
   | "INVOICE_QUERY"
   | "GENERAL"
   | "SPAM";
-export type EmailProcessingStatus = "classified" | "processed" | "needs_review" | "failed";
 
-export interface InboxEmail {
+/** Frontend view model. Fields ending in `_mock` are never supplied by the backend. */
+export interface InboxDisplayRow {
   email_id: string;
   sender: string;
   subject: string;
-  /** ISO 8601 timestamp with timezone. */
-  received_at: string;
-  /** Predicted category remains visible even when confidence is low. */
+  body: string;
+  attachments: string[];
   category: EmailCategory;
-  /** Email classification certainty (0-1), not field extraction confidence. */
-  classification_confidence: number;
-  processing_status: EmailProcessingStatus;
-  case_id?: string;
+  /** Deterministic presentation metadata until the backend provides received_at. */
+  received_at_mock: string;
+  /** Mock email-classification certainty (0-1); never field extraction confidence. */
+  classification_confidence_mock: number;
 }

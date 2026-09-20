@@ -1,0 +1,149 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { StatusBadge } from "@/components/status-badge";
+import { buildCaseDetailHref } from "@/lib/case-navigation";
+import { getReviewReasonDisplay } from "@/lib/review-reason";
+import {
+  filterReviewQueue,
+  getHumanReviewStatus,
+  hasHumanReviewStatusData,
+  humanReviewStatuses,
+  humanReviewStatusLabels,
+  summarizeReviewQueue,
+  type AutomatedStatusFilter,
+  type HumanReviewQueueCase,
+  type HumanReviewStatusFilter,
+} from "@/lib/human-review";
+
+const automatedStatusFilters: { value: AutomatedStatusFilter; label: string }[] = [
+  { value: "ALL", label: "All" },
+  { value: "MISMATCH", label: "Mismatch" },
+  { value: "NEEDS_REVIEW", label: "Needs Review" },
+];
+
+const humanReviewStatusFilters: { value: HumanReviewStatusFilter; label: string }[] = [
+  { value: "ALL", label: "All Review Statuses" },
+  ...humanReviewStatuses.map((status) => ({ value: status, label: humanReviewStatusLabels[status] })),
+];
+
+const cellClass = "block min-w-0 px-3 py-2 lg:table-cell lg:py-3";
+const mobileLabel = "mb-1 block text-xs font-medium text-slate-500 lg:hidden";
+
+export function HumanReviewQueue({ cases }: { cases: HumanReviewQueueCase[] }) {
+  const [automatedStatusFilter, setAutomatedStatusFilter] = useState<AutomatedStatusFilter>("ALL");
+  const [humanReviewStatusFilter, setHumanReviewStatusFilter] = useState<HumanReviewStatusFilter>("ALL");
+  const [search, setSearch] = useState("");
+  const humanReviewStatusAvailable = hasHumanReviewStatusData(cases);
+  const shown = filterReviewQueue(cases, automatedStatusFilter, humanReviewStatusFilter, search);
+  const summary = summarizeReviewQueue(cases);
+
+  return (
+    <div className="space-y-4">
+      <dl aria-label="Human Review queue summary" className="flex flex-wrap gap-x-6 gap-y-3 border-y border-slate-200 py-3 text-sm">
+        {[
+          ["Queue Cases", summary.total],
+          ["Mismatch", summary.mismatch],
+          ["Needs Review", summary.needsReview],
+        ].map(([label, count]) => (
+          <div key={label} className="flex items-center gap-2">
+            <dt className="text-slate-600">{label}</dt>
+            <dd className="font-semibold tabular-nums text-slate-950">{count}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,24rem)] lg:items-end">
+        <div className="space-y-3">
+          <fieldset>
+            <legend className="mb-1.5 text-xs font-medium text-slate-600">Automated Status</legend>
+            <div className="flex flex-wrap gap-2">
+              {automatedStatusFilters.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  aria-pressed={automatedStatusFilter === item.value}
+                  onClick={() => setAutomatedStatusFilter(item.value)}
+                  className={`min-h-10 rounded border px-3 text-sm font-medium ${automatedStatusFilter === item.value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset aria-describedby={!humanReviewStatusAvailable ? "human-review-status-availability" : undefined}>
+            <legend className="mb-1.5 text-xs font-medium text-slate-600">Human Review Status</legend>
+            <div className="flex flex-wrap gap-1.5">
+              {humanReviewStatusFilters.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  disabled={!humanReviewStatusAvailable}
+                  aria-pressed={humanReviewStatusFilter === item.value}
+                  onClick={() => setHumanReviewStatusFilter(item.value)}
+                  className={`min-h-9 rounded border px-2.5 text-xs font-medium ${humanReviewStatusFilter === item.value ? "border-slate-700 bg-slate-100 text-slate-800" : "border-slate-300 bg-white text-slate-600"} disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            {!humanReviewStatusAvailable && (
+              <p id="human-review-status-availability" className="mt-1 text-xs leading-4 text-slate-500">
+                Available after Human Review backend integration.
+              </p>
+            )}
+          </fieldset>
+        </div>
+        <label className="w-full text-xs font-medium text-slate-600 lg:max-w-sm">
+          Search by Email ID or subject
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search review queue"
+            className="mt-1 block min-h-10 w-full rounded border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 placeholder:text-slate-400"
+          />
+        </label>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+        <p role="status">{shown.length} of {cases.length} queue cases</p>
+        <p>Automated and Human Review status are filtered separately.</p>
+      </div>
+
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <table className="block w-full table-fixed text-left text-sm lg:table">
+          <caption className="sr-only">Cases requiring human attention, separated by automated and Human Review status</caption>
+          <thead className="hidden border-b border-slate-200 bg-slate-100 text-xs text-slate-600 lg:table-header-group">
+            <tr>
+              <th scope="col" className="w-[14%] px-3 py-3 font-medium">Email ID</th>
+              <th scope="col" className="w-[32%] px-3 py-3 font-medium">Subject</th>
+              <th scope="col" className="w-[14%] px-3 py-3 font-medium">Automated Status</th>
+              <th scope="col" className="w-[15%] px-3 py-3 font-medium">Human Review Status</th>
+              <th scope="col" className="w-[15%] px-3 py-3 font-medium">Review Reason</th>
+              <th scope="col" className="w-[10%] px-3 py-3 font-medium">Action</th>
+            </tr>
+          </thead>
+          <tbody className="block lg:table-row-group">
+            {shown.map((item) => {
+              const humanReviewStatus = getHumanReviewStatus(item);
+              return (
+                <tr key={item.email.email_id} className="grid grid-cols-1 border-b border-slate-200 last:border-b-0 sm:grid-cols-2 lg:table-row lg:hover:bg-slate-50">
+                  <td className={cellClass}><span className={mobileLabel}>Email ID</span><span className="break-all font-mono text-xs">{item.email.email_id}</span></td>
+                  <td className={cellClass}><span className={mobileLabel}>Subject</span><span className="break-words font-medium text-slate-900">{item.email.subject}</span></td>
+                  <td className={cellClass}><span className={mobileLabel}>Automated Status</span><StatusBadge status={item.status} /></td>
+                  <td className={cellClass}><span className={mobileLabel}>Human Review Status</span><span className="inline-block rounded border border-slate-300 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">{humanReviewStatus ? humanReviewStatusLabels[humanReviewStatus] : "Unavailable"}</span></td>
+                  <td className={cellClass}><span className={mobileLabel}>Review Reason</span><span className="text-xs text-slate-700">{item.review_reason ? getReviewReasonDisplay(item.review_reason).label : "Not supplied"}</span></td>
+                  <td className={cellClass}><Link prefetch={false} href={buildCaseDetailHref(item.email.email_id, "/review")} className="inline-flex min-h-9 items-center font-medium text-slate-900 underline decoration-slate-300 underline-offset-4 hover:decoration-slate-900">Open Review</Link></td>
+                </tr>
+              );
+            })}
+            {shown.length === 0 && <tr className="block lg:table-row"><td colSpan={6} className="block px-4 py-6 text-sm text-slate-500 lg:table-cell">No review cases match the selected filters.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

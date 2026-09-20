@@ -1,6 +1,7 @@
-import type { ExtractedField, FieldComparison, VerificationCase } from "@/types/verification";
+import type { ExtractedField, FieldComparison, ShippingFields, VerificationCase } from "@/types/verification";
+import type { UploadComparisonResponse, UploadedFileReference } from "@/types/upload";
 
-function isObject(value: unknown): value is Record<string, unknown> {
+export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -8,7 +9,7 @@ function isOptionalString(value: unknown): boolean {
   return value === undefined || value === null || typeof value === "string";
 }
 
-function isExtractedField(value: unknown): value is ExtractedField | null {
+export function isExtractedField(value: unknown): value is ExtractedField | null {
   if (value === null) return true;
   return isObject(value) && typeof value.field === "string"
     && typeof value.raw_value === "string" && typeof value.normalized_value === "string"
@@ -18,10 +19,32 @@ function isExtractedField(value: unknown): value is ExtractedField | null {
     && (value.page === undefined || value.page === null || (typeof value.page === "number" && Number.isInteger(value.page)));
 }
 
-function isComparison(value: unknown): value is FieldComparison {
+export function isComparison(value: unknown): value is FieldComparison {
   return isObject(value) && typeof value.field === "string"
     && typeof value.status === "string" && ["match", "mismatch", "needs_review", "missing"].includes(value.status)
     && typeof value.reason === "string" && isExtractedField(value.si) && isExtractedField(value.bl);
+}
+
+function isShippingFields(value: unknown): value is ShippingFields | null | undefined {
+  return value === undefined || value === null
+    || (isObject(value) && Object.values(value).every(isExtractedField));
+}
+
+function isUploadedFileReference(value: unknown): value is UploadedFileReference {
+  return isObject(value)
+    && typeof value.filename === "string" && value.filename.length > 0
+    && typeof value.source_filename === "string" && value.source_filename.length > 0
+    && typeof value.attachment_url === "string" && value.attachment_url.startsWith("/api/upload-comparisons/");
+}
+
+export function isUploadComparisonResponse(value: unknown): value is UploadComparisonResponse {
+  if (!isObject(value)) return false;
+  return typeof value.comparison_id === "string" && value.comparison_id.length > 0
+    && typeof value.status === "string" && ["MATCH", "MISMATCH", "NEEDS_REVIEW", "FAILED"].includes(value.status)
+    && (value.review_reason === undefined || value.review_reason === null || (typeof value.review_reason === "string" && ["missing_attachment", "missing_value", "unreadable", "wrong_doc_type", "low_confidence_extraction"].includes(value.review_reason)))
+    && isUploadedFileReference(value.si_file) && isUploadedFileReference(value.bl_file)
+    && isShippingFields(value.si_fields) && isShippingFields(value.bl_fields)
+    && Array.isArray(value.comparison) && value.comparison.every(isComparison);
 }
 
 export function isVerificationCase(value: unknown): value is VerificationCase {
@@ -34,6 +57,6 @@ export function isVerificationCase(value: unknown): value is VerificationCase {
     && typeof value.status === "string" && ["MATCH", "MISMATCH", "NEEDS_REVIEW", "FAILED"].includes(value.status)
     && Array.isArray(value.comparison) && value.comparison.every(isComparison)
     && isOptionalString(value.si_attachment) && isOptionalString(value.bl_attachment)
-    && (value.review_reason === undefined || value.review_reason === null || (typeof value.review_reason === "string" && ["wrong_doc_type", "missing_attachment", "unreadable", "missing_value"].includes(value.review_reason)))
-    && [value.si_fields, value.bl_fields].every((fields) => fields === undefined || fields === null || (isObject(fields) && Object.values(fields).every(isExtractedField)));
+    && (value.review_reason === undefined || value.review_reason === null || (typeof value.review_reason === "string" && ["missing_attachment", "missing_value", "unreadable", "wrong_doc_type", "low_confidence_extraction"].includes(value.review_reason)))
+    && [value.si_fields, value.bl_fields].every(isShippingFields);
 }

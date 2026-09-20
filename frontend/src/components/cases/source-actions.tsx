@@ -3,15 +3,45 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import type { FieldComparison } from "@/types/verification";
+import type { EvidenceSourceContext, SourceDocument, SourceDocumentFormat } from "@/types/source";
 import { mock_document_sources } from "@/data/mock-document-sources";
+import { getUploadAttachmentUrl } from "@/lib/api";
 
 const SourceViewer = dynamic(() => import("./source-viewer"), { ssr: false, loading: () => <p role="status" className="text-sm">Opening document viewer...</p> });
 
-export function SourceActions({ emailId, comparison, mockMode }: { emailId: string; comparison: FieldComparison; mockMode: boolean }) {
+function sourceFormat(filename: string): SourceDocumentFormat | null {
+  const extension = filename.split(".").pop()?.toLocaleLowerCase();
+  return extension === "pdf" || extension === "txt" || extension === "docx" || extension === "xlsx"
+    ? extension
+    : null;
+}
+
+function getSources(sourceContext: EvidenceSourceContext): { si: SourceDocument | null; bl: SourceDocument | null } | undefined {
+  if (sourceContext.kind === "upload") {
+    const build = (role: "si" | "bl"): SourceDocument | null => {
+      const file = role === "si" ? sourceContext.siFile : sourceContext.blFile;
+      const format = sourceFormat(file.filename);
+      return format ? {
+        url: getUploadAttachmentUrl(sourceContext.comparisonId, role),
+        filename: file.filename,
+        format,
+      } : null;
+    };
+    return { si: build("si"), bl: build("bl") };
+  }
+
+  const mockSources = sourceContext.mockMode ? mock_document_sources[sourceContext.emailId] : undefined;
+  if (!mockSources) return undefined;
+  return {
+    si: mockSources.si ? { ...mockSources.si, format: "pdf", synthetic: true } : null,
+    bl: mockSources.bl ? { ...mockSources.bl, format: "pdf", synthetic: true } : null,
+  };
+}
+
+export function SourceActions({ sourceContext, comparison }: { sourceContext: EvidenceSourceContext; comparison: FieldComparison }) {
   const [side, setSide] = useState<"si" | "bl" | null>(null);
-  // TODO(Person B): attachment paths are not a documented document-download API.
-  // Never substitute a demo PDF for a real backend case.
-  const sources = mockMode ? mock_document_sources[emailId] : undefined;
+  // Email cases still require their own documented attachment route. Upload comparisons use real upload attachment endpoints.
+  const sources = getSources(sourceContext);
   const source = side ? sources?.[side] : null;
   return (
     <div className="mt-3">

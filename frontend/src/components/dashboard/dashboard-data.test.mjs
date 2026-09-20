@@ -1,46 +1,61 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { groupCases } from "./dashboard-data.ts";
+import { countReviewReasons, filterCases, groupCases, groupReviewReasonCases, resolveCaseFilter } from "./dashboard-data.ts";
 
-function makeCase({ emailId, status, fieldStatus = "match", reviewReason = null }) {
+function makeCase({ emailId, status, reviewReason = null }) {
   return {
-    email: {
-      email_id: emailId,
-      from: "operations@example.com",
-      subject: "Shipping document verification",
-      body: "",
-      attachments: [],
-    },
+    email: { email_id: emailId, from: "operations@example.com", subject: "Verification", body: "", attachments: [] },
     category: "BL_COMPARISON",
     status,
-    comparison: [{ field: "shipper", status: fieldStatus, si: null, bl: null, reason: "Test fixture" }],
+    comparison: [],
     review_reason: reviewReason,
   };
 }
 
-test("groups cases by authoritative case status", () => {
-  const matched = makeCase({ emailId: "matched", status: "MATCH" });
-  const mismatchWithMissingField = makeCase({ emailId: "mismatch", status: "MISMATCH", fieldStatus: "missing" });
-  const needsReviewMissingValue = makeCase({ emailId: "missing-value", status: "NEEDS_REVIEW", fieldStatus: "missing", reviewReason: "missing_value" });
-  const needsReviewUnreadable = makeCase({ emailId: "unreadable", status: "NEEDS_REVIEW", reviewReason: "unreadable" });
-  const failed = makeCase({ emailId: "failed", status: "FAILED", fieldStatus: "missing" });
+const cases = [
+  makeCase({ emailId: "matched", status: "MATCH" }),
+  makeCase({ emailId: "mismatch", status: "MISMATCH" }),
+  makeCase({ emailId: "missing-attachment", status: "NEEDS_REVIEW", reviewReason: "missing_attachment" }),
+  makeCase({ emailId: "missing-value", status: "NEEDS_REVIEW", reviewReason: "missing_value" }),
+  makeCase({ emailId: "unreadable", status: "NEEDS_REVIEW", reviewReason: "unreadable" }),
+  makeCase({ emailId: "wrong-doc", status: "NEEDS_REVIEW", reviewReason: "wrong_doc_type" }),
+  makeCase({ emailId: "low-confidence", status: "NEEDS_REVIEW", reviewReason: "low_confidence_extraction" }),
+  makeCase({ emailId: "unspecified", status: "NEEDS_REVIEW" }),
+  makeCase({ emailId: "failed", status: "FAILED" }),
+];
 
-  const groups = groupCases([matched, mismatchWithMissingField, needsReviewMissingValue, needsReviewUnreadable, failed]);
-
-  assert.deepEqual(groups.matched.map((item) => item.email.email_id), ["matched"]);
-  assert.deepEqual(groups.mismatch.map((item) => item.email.email_id), ["mismatch"]);
-  assert.deepEqual(groups.needs_review.map((item) => item.email.email_id), ["missing-value", "unreadable"]);
-  assert.deepEqual(groups.failed.map((item) => item.email.email_id), ["failed"]);
+test("uses four authoritative top-level case statuses", () => {
+  const groups = groupCases(cases);
+  assert.deepEqual(Object.keys(groups), ["matched", "mismatch", "needs_review", "failed"]);
+  assert.equal(groups.needs_review.length, 6);
+  assert.equal(groups.failed.length, 1);
 });
 
-test("limits Missing Information to missing attachment or missing value review reasons", () => {
-  const cases = [
-    makeCase({ emailId: "mismatch", status: "MISMATCH", fieldStatus: "missing" }),
-    makeCase({ emailId: "missing-attachment", status: "NEEDS_REVIEW", reviewReason: "missing_attachment" }),
-    makeCase({ emailId: "missing-value", status: "NEEDS_REVIEW", reviewReason: "missing_value" }),
-    makeCase({ emailId: "unreadable", status: "NEEDS_REVIEW", reviewReason: "unreadable" }),
-    makeCase({ emailId: "wrong-doc", status: "NEEDS_REVIEW", reviewReason: "wrong_doc_type" }),
-  ];
+test("counts only backend-supplied review reasons", () => {
+  assert.deepEqual(countReviewReasons(cases), {
+    missing_attachment: 1,
+    missing_value: 1,
+    unreadable: 1,
+    wrong_doc_type: 1,
+    low_confidence_extraction: 1,
+  });
+});
 
-  assert.deepEqual(groupCases(cases).missing_information.map((item) => item.email.email_id), ["missing-attachment", "missing-value"]);
+test("groups preview cases by backend-supplied review reason", () => {
+  const groups = groupReviewReasonCases(cases);
+  assert.deepEqual(groups.missing_attachment.map((item) => item.email.email_id), ["missing-attachment"]);
+  assert.deepEqual(groups.low_confidence_extraction.map((item) => item.email.email_id), ["low-confidence"]);
+  assert.equal(Object.values(groups).flat().some((item) => item.email.email_id === "unspecified"), false);
+});
+
+test("supports overall status and review reason filters", () => {
+  const allReview = resolveCaseFilter({ status: "NEEDS_REVIEW" });
+  const missing = resolveCaseFilter({ status: "NEEDS_REVIEW", review_reason: "missing_attachment" });
+  assert.notEqual(allReview, "invalid");
+  assert.notEqual(missing, "invalid");
+  assert.equal(filterCases(cases, allReview).length, 6);
+  assert.deepEqual(filterCases(cases, missing).map((item) => item.email.email_id), ["missing-attachment"]);
+  assert.deepEqual(resolveCaseFilter({ status: "mismatch" }), { group: "mismatch", reviewReason: undefined });
+  assert.equal(resolveCaseFilter({ review_reason: "missing_value" }), "invalid");
+  assert.equal(resolveCaseFilter({ status: "NEEDS_REVIEW", review_reason: "unknown" }), "invalid");
 });
