@@ -138,6 +138,7 @@ class AIService:
         self.model = model or os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
         self.vision_model = os.getenv("GROQ_VISION_MODEL", "qwen/qwen3.8-27b")
         self.client = client
+        self._text_semaphore = asyncio.Semaphore(1)
         self._vision_semaphore = asyncio.Semaphore(1)
 
     async def _request(self, payload: dict) -> httpx.Response:
@@ -188,7 +189,8 @@ class AIService:
         }
         if self.model.startswith("openai/gpt-oss-"):
             payload["reasoning_effort"] = "low"
-        response = await self._request(payload)
+        async with self._text_semaphore:
+            response = await self._request(payload)
         try:
             return json.loads(response.json()["choices"][0]["message"]["content"])
         except (KeyError, IndexError, TypeError, ValueError) as exc:

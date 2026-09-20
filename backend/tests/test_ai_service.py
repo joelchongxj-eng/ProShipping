@@ -101,6 +101,29 @@ async def test_vision_requests_are_serialized_across_cases():
 
 
 @pytest.mark.asyncio
+async def test_text_requests_are_serialized_across_cases():
+    active = 0
+    max_active = 0
+
+    async def handler(request):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0)
+        active -= 1
+        result = {"category": "GENERAL", "reason": "Greeting", "uncertain": False}
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(result)}}]})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = AIService("test-key", client=client)
+    emails = [EmailRecord(email_id=f"demo-{i}", **{"from": "demo@example.com"},
+                          subject="Hello", body="", attachments=[]) for i in range(2)]
+    await asyncio.gather(*(service.classify(email) for email in emails))
+
+    assert max_active == 1
+
+
+@pytest.mark.asyncio
 async def test_classifies_email_into_existing_backend_category():
     client = service_reply([{"category": "BL_COMPARISON", "reason": "Asks to check SI against draft BL", "uncertain": False}])
     email = EmailRecord(email_id="email_001", **{"from": "person@example.com"}, subject="Please check documents", body="Compare the attached SI and BL", attachments=[])

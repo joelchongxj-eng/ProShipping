@@ -75,7 +75,8 @@ guesses. If all seven fields and document type are present, extraction is fully
 local; otherwise Groq fills the missing fields. A PDF OCR transcript with a
 recognized document heading and all seven labeled fields also uses local
 extraction. Vision OCR requests are sent one at a time per AI service instance
-to reduce token-rate bursts; provider limits can still require a retry.
+to reduce token-rate bursts. Text classification and extraction requests are
+also sent one at a time per instance; provider limits can still require a retry.
 
 To evaluate a small selected batch from the local competition bundle, run this
 from `backend` after setting `GROQ_API_KEY`:
