@@ -142,3 +142,26 @@ Manually verify status visibility, all seven fields, evidence access, missing at
 Use the existing `frontend` branch unless directed otherwise; inspect Git state first. Keep changes focused and `main` runnable. Use concise imperative commit messages. PRs need a description, checks performed, relevant task links, UI screenshots, and teammate review. Person B coordinates integration at noon and in the evening.
 
 Finish tasks by stating what changed, what was checked, and any remaining API dependency. Do not add live email integration, registration/billing, complex permissions, a general chatbot, or unrelated backend work to Person A's scope.
+
+## Credit / Token Efficiency
+
+Work efficiently and minimize unnecessary Codex token/credit usage without reducing implementation quality.
+
+- Read this AGENTS.md first.
+- Inspect only files relevant to the current task.
+- Prefer targeted search for exact components, routes, endpoint names, enums, models, and types.
+- Use progressive inspection: start from the obvious entry file and follow only the imports/contracts needed.
+- Do not scan whole folders or the entire repository unless necessary.
+- Do not repeatedly reopen unchanged files.
+- Reuse existing components, helpers, types, API functions, and patterns.
+- Do not refactor or investigate unrelated features.
+- Inspect backend code only when required to verify an exact contract.
+- Run targeted tests during development; run lint/typecheck/build near the end rather than repeatedly.
+- Avoid verbose progress commentary.
+- If a requirement is blocked by missing backend support, report the blocker instead of exploring unnecessary workarounds.
+- Keep final reports concise but complete.
+
+Priority:
+correct implementation > minimal changes > minimal token usage.
+
+Never sacrifice correctness, testing, accessibility, or backend-contract accuracy just to save tokens.

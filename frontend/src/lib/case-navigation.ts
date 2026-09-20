@@ -1,5 +1,5 @@
 const APP_ORIGIN = "http://proshipping.local";
-const ALLOWED_RETURN_PATHS = new Set(["/", "/inbox", "/cases", "/review"]);
+const ALLOWED_RETURN_PATHS = new Set(["/", "/inbox", "/cases", "/review", "/submission"]);
 
 export function buildCaseDetailHref(emailId: string, returnTo: string): string {
   return `/cases/${encodeURIComponent(emailId)}?from=${encodeURIComponent(returnTo)}`;
@@ -21,6 +21,7 @@ export function getCaseReturnLabel(href: string, getReviewReasonLabel?: (value: 
   const url = new URL(href, APP_ORIGIN);
   if (url.pathname === "/inbox") return "Back to Inbox";
   if (url.pathname === "/review") return "Back to Human Review";
+  if (url.pathname === "/submission") return "Back to Submission";
   if (url.pathname !== "/cases") return "Back to Dashboard";
 
   const reviewReason = url.searchParams.get("review_reason");

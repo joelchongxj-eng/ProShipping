@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import type { SourceDocument } from "@/types/source";
+import { fetchTextSource, SourceDocumentError } from "@/lib/source-document";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
 
@@ -33,17 +34,13 @@ export default function SourceViewer({ source, title, initialPage, onClose }: { 
     const controller = new AbortController();
     setTextContent(null);
     setError("");
-    fetch(source.url, { cache: "no-store", signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error("Source request failed");
-        return response.text();
-      })
-      .then(setTextContent)
-      .catch((reason: unknown) => {
-        if (!(reason instanceof DOMException && reason.name === "AbortError")) {
-          setError("The text document could not be loaded. It may have expired or become unavailable.");
-        }
-      });
+    fetchTextSource(source.url, (input, init) => fetch(input, { ...init, signal: controller.signal }))
+        .then(setTextContent)
+        .catch((reason: unknown) => {
+          if (!(reason instanceof DOMException && reason.name === "AbortError")) {
+            setError(reason instanceof SourceDocumentError ? reason.message : "Source file could not be loaded.");
+          }
+        });
     return () => controller.abort();
   }, [source]);
 

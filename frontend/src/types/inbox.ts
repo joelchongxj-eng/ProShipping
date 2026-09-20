@@ -6,7 +6,7 @@ export type EmailCategory =
   | "GENERAL"
   | "SPAM";
 
-/** Frontend view model. Fields ending in `_mock` are never supplied by the backend. */
+/** Frontend view model derived from the backend case list. */
 export interface InboxDisplayRow {
   email_id: string;
   sender: string;
@@ -14,8 +14,6 @@ export interface InboxDisplayRow {
   body: string;
   attachments: string[];
   category: EmailCategory;
-  /** Deterministic presentation metadata until the backend provides received_at. */
-  received_at_mock: string;
-  /** Mock email-classification certainty (0-1); never field extraction confidence. */
-  classification_confidence_mock: number;
+  /** Null until CaseRecord exposes the classifier's reason through the API. */
+  classification_reason: string | null;
 }

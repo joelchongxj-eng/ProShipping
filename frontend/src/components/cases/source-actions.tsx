@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { FieldComparison } from "@/types/verification";
 import type { EvidenceSourceContext, SourceDocument, SourceDocumentFormat } from "@/types/source";
 import { mock_document_sources } from "@/data/mock-document-sources";
-import { getUploadAttachmentUrl } from "@/lib/api";
+import { getCaseAttachmentUrl, getUploadAttachmentUrl } from "@/lib/api";
 
 const SourceViewer = dynamic(() => import("./source-viewer"), { ssr: false, loading: () => <p role="status" className="text-sm">Opening document viewer...</p> });
 
@@ -31,6 +31,14 @@ function getSources(sourceContext: EvidenceSourceContext): { si: SourceDocument 
   }
 
   const mockSources = sourceContext.mockMode ? mock_document_sources[sourceContext.emailId] : undefined;
+  if (!sourceContext.mockMode) {
+    const build = (filename: string | null): SourceDocument | null => {
+      if (!filename) return null;
+      const format = sourceFormat(filename);
+      return format ? { url: getCaseAttachmentUrl(sourceContext.emailId, filename), filename, format } : null;
+    };
+    return { si: build(sourceContext.siAttachment), bl: build(sourceContext.blAttachment) };
+  }
   if (!mockSources) return undefined;
   return {
     si: mockSources.si ? { ...mockSources.si, format: "pdf", synthetic: true } : null,
@@ -40,7 +48,6 @@ function getSources(sourceContext: EvidenceSourceContext): { si: SourceDocument 
 
 export function SourceActions({ sourceContext, comparison }: { sourceContext: EvidenceSourceContext; comparison: FieldComparison }) {
   const [side, setSide] = useState<"si" | "bl" | null>(null);
-  // Email cases still require their own documented attachment route. Upload comparisons use real upload attachment endpoints.
   const sources = getSources(sourceContext);
   const source = side ? sources?.[side] : null;
   return (
@@ -53,7 +60,7 @@ export function SourceActions({ sourceContext, comparison }: { sourceContext: Ev
           </div>
         ))}
       </div>
-      {side && source && <SourceViewer source={source} title={side === "si" ? "Shipping Instruction" : "Draft Bill of Lading"} initialPage={comparison[side]?.page ?? null} onClose={() => setSide(null)} />}
+      {side && source && <SourceViewer source={source} title={side === "si" ? "Shipping Instruction" : "Draft Bill of Lading"} initialPage={comparison[side]?.source?.page ?? comparison[side]?.page ?? null} onClose={() => setSide(null)} />}
     </div>
   );
 }

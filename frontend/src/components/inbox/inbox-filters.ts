@@ -15,17 +15,16 @@ export function getCategoryLabel(category: unknown): string {
     : "Unknown";
 }
 
-export const MOCK_CLASSIFICATION_REVIEW_THRESHOLD = 0.80;
+export function getClassificationReasonDisplay(reason: string | null): string {
+  return reason?.trim() || "—";
+}
+
 export type CategoryFilter = EmailCategory | "all";
-export type ConfidenceFilter = "all" | "high" | "medium" | "low";
-export interface InboxFilters { category: CategoryFilter; date: string; confidence: ConfidenceFilter }
-export const defaultFilters: InboxFilters = { category: "all", date: "all", confidence: "all" };
+export interface InboxFilters { category: CategoryFilter }
+export const defaultFilters: InboxFilters = { category: "all" };
 
 export function filterEmails(emails: InboxDisplayRow[], filters: InboxFilters): InboxDisplayRow[] {
-  return emails.filter((email) => {
-    const confidence = email.classification_confidence_mock;
-    return (filters.category === "all" || email.category === filters.category)
-      && (filters.date === "all" || email.received_at_mock.slice(0, 10) === filters.date)
-      && (filters.confidence === "all" || (filters.confidence === "high" ? confidence >= 0.90 : filters.confidence === "medium" ? confidence >= 0.80 && confidence < 0.90 : confidence < 0.80));
-  });
+  return filters.category === "all"
+    ? emails
+    : emails.filter((email) => email.category === filters.category);
 }

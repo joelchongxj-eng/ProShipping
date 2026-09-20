@@ -36,7 +36,7 @@ export default async function Page() {
         </div>
       </div>
       <DashboardSummary total={cases.length} counts={counts} />
-      <p className="text-xs text-slate-500">{isMockMode ? "Demo data · Synthetic verification cases" : "Backend data · BL comparison cases"}</p>
+      {isMockMode && <p className="text-xs text-slate-500">Demo data · Synthetic verification cases</p>}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         <StatusSection group="matched" title="Matched" cases={groups.matched} />
         <StatusSection group="mismatch" title="Mismatch" cases={groups.mismatch} />

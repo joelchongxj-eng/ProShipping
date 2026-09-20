@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { getReviewReasonDisplay } from "@/lib/review-reason";
 import { ExtractedValueDisplay } from "./extracted-value";
 import { EvidencePanel } from "./evidence-panel";
+import { comparisonMethodLabels } from "@/lib/source-locator";
 
 const fields: { key: ShippingField; label: string }[] = [
   { key: "shipper", label: "Shipper" },
@@ -23,13 +24,19 @@ interface ComparisonResultProps {
   comparison: FieldComparison[];
   reviewReason?: ReviewReason | null;
   sourceContext: EvidenceSourceContext;
+  selectedField?: ShippingField | null;
+  onSelectedFieldChange?: (field: ShippingField) => void;
 }
 
-export function ComparisonResult({ status, comparison, reviewReason, sourceContext }: ComparisonResultProps) {
+export function ComparisonResult({ status, comparison, reviewReason, sourceContext, selectedField, onSelectedFieldChange }: ComparisonResultProps) {
   const preferred = ["mismatch", "needs_review", "missing"]
     .map((candidate) => comparison.findIndex((item) => item.status === candidate))
     .find((index) => index >= 0);
-  const [selected, setSelected] = useState(preferred ?? 0);
+  const [internalSelected, setInternalSelected] = useState(preferred ?? 0);
+  const controlledSelected = selectedField === undefined
+    ? undefined
+    : comparison.findIndex((item) => item.field === selectedField);
+  const selected = controlledSelected ?? internalSelected;
   const selectedComparison = comparison[selected];
   const fieldLabel = (field: string) => fields.find(({ key }) => key === field)?.label ?? field;
 
@@ -38,6 +45,11 @@ export function ComparisonResult({ status, comparison, reviewReason, sourceConte
       ? getReviewReasonDisplay(reviewReason).message
       : "Comparison results are not available.";
     return <p className="rounded-md border border-slate-200 bg-white p-4 text-sm text-slate-700">{explanation}</p>;
+  }
+
+  function selectField(index: number) {
+    setInternalSelected(index);
+    onSelectedFieldChange?.(comparison[index].field as ShippingField);
   }
 
   return (
@@ -56,14 +68,19 @@ export function ComparisonResult({ status, comparison, reviewReason, sourceConte
               const active = selected === index;
               const tone = item.status === "mismatch" ? "bg-red-50/60" : item.status === "needs_review" ? "bg-yellow-50/60" : item.status === "missing" ? "bg-gray-100" : "bg-white";
               return (
-                <tr key={`${item.field}-${index}`} onClick={() => setSelected(index)} data-field={item.field} data-selected={active} className={`mb-3 block cursor-pointer border border-slate-200 align-top md:mb-0 md:table-row ${tone} ${active ? "outline outline-2 -outline-offset-2 outline-slate-600" : ""}`}>
+                <tr key={`${item.field}-${index}`} onClick={() => selectField(index)} data-field={item.field} data-selected={active} className={`mb-3 block cursor-pointer border border-slate-200 align-top md:mb-0 md:table-row ${tone} ${active ? "outline outline-2 -outline-offset-2 outline-slate-600" : ""}`}>
                   <th scope="row" className="block p-3 md:table-cell">
-                    <button type="button" aria-pressed={active} aria-controls="field-evidence" onClick={() => setSelected(index)} className="text-left text-sm font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4">{label}</button>
+                    <button type="button" aria-pressed={active} aria-controls="field-evidence" onClick={() => selectField(index)} className="text-left text-sm font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4">{label}</button>
                     {active && <span className="mt-1 block text-xs font-normal text-slate-500">Selected</span>}
                   </th>
                   <td className="block px-3 pb-3 md:table-cell md:pt-3"><span className="mb-1 block text-xs font-semibold text-slate-600 md:hidden">Shipping Instruction</span><ExtractedValueDisplay value={item.si} /></td>
                   <td className="block px-3 pb-3 md:table-cell md:pt-3"><span className="mb-1 block text-xs font-semibold text-slate-600 md:hidden">Draft Bill of Lading</span><ExtractedValueDisplay value={item.bl} /></td>
-                  <td className="block px-3 pb-3 md:table-cell md:pt-3"><StatusBadge status={item.status} /><p className="mt-2 text-xs leading-5 text-slate-600">{item.reason}</p></td>
+                  <td className="block px-3 pb-3 md:table-cell md:pt-3">
+                    <StatusBadge status={item.status} />
+                    {item.comparison_method && <p className="mt-2 text-xs font-medium text-slate-700">{comparisonMethodLabels[item.comparison_method]}</p>}
+                    <p className="mt-1 text-xs leading-5 text-slate-600">{item.reason}</p>
+                    {item.equivalence_reason && <p className="mt-2 border-l-2 border-slate-300 pl-2 text-xs leading-5 text-slate-600"><span className="font-medium">Equivalence:</span> {item.equivalence_reason}</p>}
+                  </td>
                 </tr>
               );
             })}
