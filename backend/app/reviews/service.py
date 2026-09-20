@@ -1,10 +1,6 @@
-import hashlib
-import json
 from collections.abc import Callable
 from datetime import UTC, datetime
 from uuid import uuid4
-
-from pydantic import BaseModel
 
 from app.models import (
     CaseRecord,
@@ -13,6 +9,7 @@ from app.models import (
     FieldStatus,
     UploadComparisonResponse,
 )
+from app.reviews.hashing import automated_result_hash
 from app.reviews.models import (
     CreateHumanReviewRequest,
     EffectiveFieldValue,
@@ -45,10 +42,12 @@ class HumanReviewService:
         store: HumanReviewStore,
         case_lookup: Callable[[str], CaseRecord | None],
         upload_lookup: Callable[[str], UploadComparisonResponse | None],
+        retry_upload_lookup: Callable[[str], UploadComparisonResponse | None] | None = None,
     ) -> None:
         self.store = store
         self.case_lookup = case_lookup
         self.upload_lookup = upload_lookup
+        self.retry_upload_lookup = retry_upload_lookup
 
     def create(
         self,
@@ -56,7 +55,11 @@ class HumanReviewService:
         target_id: str,
         request: CreateHumanReviewRequest,
     ) -> HumanReviewRecord:
-        target = self._resolve(target_type, target_id)
+        target = self._resolve(
+            target_type,
+            target_id,
+            allow_retry_snapshot=request.action is ReviewAction.RETRY,
+        )
         self._validate_request(target, request)
         comparison = self._field_comparison(target, request.field)
         previous = self._latest_for_key(
@@ -114,7 +117,7 @@ class HumanReviewService:
                 if carries_escalation
                 else None
             ),
-            automated_result_hash=self._result_hash(target),
+            automated_result_hash=automated_result_hash(target),
             created_at=now,
         )
         return self.store.append(record)
@@ -124,7 +127,7 @@ class HumanReviewService:
         target_type: ReviewTargetType,
         target_id: str,
     ) -> HumanReviewHistory:
-        self._resolve(target_type, target_id)
+        self._resolve(target_type, target_id, allow_retry_snapshot=True)
         return HumanReviewHistory(
             target_type=target_type,
             target_id=target_id,
@@ -136,7 +139,11 @@ class HumanReviewService:
         target_type: ReviewTargetType,
         target_id: str,
     ) -> HumanReviewSummary:
-        target = self._resolve(target_type, target_id)
+        target = self._resolve(
+            target_type,
+            target_id,
+            allow_retry_snapshot=True,
+        )
         records = self.store.list(target_type, target_id)
         latest = records[-1] if records else None
         active = self._latest_records_by_key(records)
@@ -367,27 +374,26 @@ class HumanReviewService:
         self,
         target_type: ReviewTargetType,
         target_id: str,
+        *,
+        allow_retry_snapshot: bool = False,
     ) -> CaseRecord | UploadComparisonResponse:
         target = (
             self.case_lookup(target_id)
             if target_type is ReviewTargetType.COMPETITION_CASE
             else self.upload_lookup(target_id)
         )
+        if (
+            target is None
+            and allow_retry_snapshot
+            and target_type is ReviewTargetType.UPLOAD_COMPARISON
+            and self.retry_upload_lookup is not None
+        ):
+            target = self.retry_upload_lookup(target_id)
         if target is None:
             raise HumanReviewError(404, "Review target not found.")
         if target.status is CaseStatus.FAILED:
             raise HumanReviewError(409, "FAILED targets are not reviewable.")
         return target
-
-    @staticmethod
-    def _result_hash(target: BaseModel) -> str:
-        encoded = json.dumps(
-            target.model_dump(mode="json"),
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-        ).encode()
-        return hashlib.sha256(encoded).hexdigest()
 
     @staticmethod
     def _effective_values(

@@ -16,6 +16,8 @@ from app.models import (
     UploadedFileReference,
 )
 from app.reviews.router import create_review_router
+from app.reviews.retry import RetryExecutionStore
+from app.reviews.retry_service import RetryExecutionService
 from app.reviews.service import HumanReviewService
 from app.reviews.store import HumanReviewStore
 from app.services.ai_service import AIService
@@ -43,6 +45,14 @@ upload_store = UploadComparisonStore(
     max_upload_bytes=int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024))),
 )
 human_review_store = HumanReviewStore()
+retry_execution_store = RetryExecutionStore()
+retry_execution_service = RetryExecutionService(
+    retry_execution_store,
+    processor=processor,
+    case_lookup=lambda email_id: cases.get(email_id),
+    upload_session_lookup=upload_store.get,
+    ai_service_lookup=lambda: ai_service,
+)
 human_review_service = HumanReviewService(
     human_review_store,
     case_lookup=lambda email_id: cases.get(email_id),
@@ -51,10 +61,18 @@ human_review_service = HumanReviewService(
         if (session := upload_store.get(comparison_id)) is not None
         else None
     ),
+    retry_upload_lookup=retry_execution_service.registered_upload,
 )
-app.include_router(create_review_router(human_review_service))
+app.include_router(
+    create_review_router(human_review_service, retry_execution_service)
+)
 app.router.add_event_handler("shutdown", upload_store.close)
 app.router.add_event_handler("shutdown", human_review_store.clear)
+app.router.add_event_handler("shutdown", retry_execution_store.clear)
+app.router.add_event_handler(
+    "shutdown",
+    retry_execution_service.clear_registered_uploads,
+)
 
 ATTACHMENT_MEDIA_TYPES = {
     ".pdf": "application/pdf",
@@ -186,6 +204,7 @@ async def compare_upload(
         bl_extension=bl_extension,
         bl_content=bl_content,
     )
+    retry_execution_service.register_upload(response)
     return response
 
 
