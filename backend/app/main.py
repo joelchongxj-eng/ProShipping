@@ -20,6 +20,7 @@ from app.reviews.escalation import EscalationStore
 from app.reviews.escalation_service import EscalationService
 from app.reviews.retry import RetryExecutionStore
 from app.reviews.retry_service import RetryExecutionService
+from app.reviews.review_queue_service import HumanReviewQueueService
 from app.reviews.service import HumanReviewService
 from app.reviews.store import HumanReviewStore
 from app.services.ai_service import AIService
@@ -67,11 +68,18 @@ human_review_service = HumanReviewService(
     ),
     retry_upload_lookup=retry_execution_service.registered_upload,
 )
+review_queue_service = HumanReviewQueueService(
+    case_list=lambda: list(cases.values()),
+    review_service=human_review_service,
+    retry_store=retry_execution_store,
+    escalation_store=escalation_store,
+)
 app.include_router(
     create_review_router(
         human_review_service,
         retry_execution_service,
         escalation_service,
+        review_queue_service,
     )
 )
 app.router.add_event_handler("shutdown", upload_store.close)

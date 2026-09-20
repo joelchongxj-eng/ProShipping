@@ -1,7 +1,8 @@
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
+from app.models import CaseStatus
 from app.reviews.escalation import (
     EscalationAssignment,
     EscalationAssignmentHistory,
@@ -11,12 +12,15 @@ from app.reviews.models import (
     CreateHumanReviewRequest,
     HumanReviewHistory,
     HumanReviewRecord,
+    HumanReviewStatus,
     HumanReviewSummary,
     ReviewAction,
     ReviewTargetType,
 )
 from app.reviews.retry import RetryAttemptHistory
 from app.reviews.retry_service import RetryExecutionError, RetryExecutionService
+from app.reviews.review_queue import HumanReviewQueueResponse
+from app.reviews.review_queue_service import HumanReviewQueueService
 from app.reviews.service import HumanReviewError, HumanReviewService
 
 
@@ -24,6 +28,7 @@ def create_review_router(
     service: HumanReviewService,
     retry_service: RetryExecutionService,
     escalation_service: EscalationService,
+    queue_service: HumanReviewQueueService,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -170,5 +175,30 @@ def create_review_router(
             return await escalation_service.resend(assignment_id)
         except EscalationError as exc:
             raise HTTPException(exc.status_code, exc.detail) from exc
+
+    @router.get(
+        "/api/review-queue",
+        response_model=HumanReviewQueueResponse,
+    )
+    def get_review_queue(
+        limit: int = Query(default=50, ge=1, le=100),
+        offset: int = Query(default=0, ge=0),
+        include_match: bool = False,
+        search: str | None = None,
+        automated_status: CaseStatus | None = None,
+        human_review_status: HumanReviewStatus | None = None,
+        is_escalated: bool | None = None,
+        retry_requested: bool | None = None,
+    ) -> HumanReviewQueueResponse:
+        return queue_service.list(
+            limit=limit,
+            offset=offset,
+            include_match=include_match,
+            search=search,
+            automated_status=automated_status,
+            human_review_status=human_review_status,
+            is_escalated=is_escalated,
+            retry_requested=retry_requested,
+        )
 
     return router
