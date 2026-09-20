@@ -4,20 +4,21 @@ import type { HumanReviewStatus } from "@/types/human-review";
 export const reviewQueueStatuses = ["MISMATCH", "NEEDS_REVIEW"] as const;
 export const humanReviewStatuses = [
   "PENDING",
+  "IN_REVIEW",
   "CONFIRMED",
   "CORRECTED",
   "ACCEPTED_EQUIVALENT",
-  "MARKED_UNREADABLE",
+  "UNREADABLE",
   "RETRY_REQUESTED",
   "ESCALATED",
 ] as const satisfies readonly HumanReviewStatus[];
-
 export const humanReviewStatusLabels: Record<HumanReviewStatus, string> = {
   PENDING: "Pending",
+  IN_REVIEW: "In Review",
   CONFIRMED: "Confirmed",
   CORRECTED: "Corrected",
   ACCEPTED_EQUIVALENT: "Accepted Equivalent",
-  MARKED_UNREADABLE: "Marked Unreadable",
+  UNREADABLE: "Marked Unreadable",
   RETRY_REQUESTED: "Retry Requested",
   ESCALATED: "Escalated",
 };

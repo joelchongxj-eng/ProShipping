@@ -19,7 +19,6 @@ const cases = [
   makeCase({ emailId: "missing-value", status: "NEEDS_REVIEW", reviewReason: "missing_value" }),
   makeCase({ emailId: "unreadable", status: "NEEDS_REVIEW", reviewReason: "unreadable" }),
   makeCase({ emailId: "wrong-doc", status: "NEEDS_REVIEW", reviewReason: "wrong_doc_type" }),
-  makeCase({ emailId: "low-confidence", status: "NEEDS_REVIEW", reviewReason: "low_confidence_extraction" }),
   makeCase({ emailId: "unspecified", status: "NEEDS_REVIEW" }),
   makeCase({ emailId: "failed", status: "FAILED" }),
 ];
@@ -27,7 +26,7 @@ const cases = [
 test("uses four authoritative top-level case statuses", () => {
   const groups = groupCases(cases);
   assert.deepEqual(Object.keys(groups), ["matched", "mismatch", "needs_review", "failed"]);
-  assert.equal(groups.needs_review.length, 6);
+  assert.equal(groups.needs_review.length, 5);
   assert.equal(groups.failed.length, 1);
 });
 
@@ -37,14 +36,12 @@ test("counts only backend-supplied review reasons", () => {
     missing_value: 1,
     unreadable: 1,
     wrong_doc_type: 1,
-    low_confidence_extraction: 1,
   });
 });
 
 test("groups preview cases by backend-supplied review reason", () => {
   const groups = groupReviewReasonCases(cases);
   assert.deepEqual(groups.missing_attachment.map((item) => item.email.email_id), ["missing-attachment"]);
-  assert.deepEqual(groups.low_confidence_extraction.map((item) => item.email.email_id), ["low-confidence"]);
   assert.equal(Object.values(groups).flat().some((item) => item.email.email_id === "unspecified"), false);
 });
 
@@ -53,7 +50,7 @@ test("supports overall status and review reason filters", () => {
   const missing = resolveCaseFilter({ status: "NEEDS_REVIEW", review_reason: "missing_attachment" });
   assert.notEqual(allReview, "invalid");
   assert.notEqual(missing, "invalid");
-  assert.equal(filterCases(cases, allReview).length, 6);
+  assert.equal(filterCases(cases, allReview).length, 5);
   assert.deepEqual(filterCases(cases, missing).map((item) => item.email.email_id), ["missing-attachment"]);
   assert.deepEqual(resolveCaseFilter({ status: "mismatch" }), { group: "mismatch", reviewReason: undefined });
   assert.equal(resolveCaseFilter({ review_reason: "missing_value" }), "invalid");

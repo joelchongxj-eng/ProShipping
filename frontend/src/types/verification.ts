@@ -5,12 +5,12 @@ import type { EmailCategory } from "./inbox";
  */
 export type CaseStatus = "MATCH" | "MISMATCH" | "NEEDS_REVIEW" | "FAILED";
 export type FieldStatus = "match" | "mismatch" | "needs_review" | "missing";
+export type ComparisonMethod = "EXACT" | "NORMALIZED" | "SEMANTIC_RULE" | "SEMANTIC_AI";
 export type ReviewReason =
   | "missing_attachment"
   | "missing_value"
   | "unreadable"
-  | "wrong_doc_type"
-  | "low_confidence_extraction";
+  | "wrong_doc_type";
 export type ShippingField = "shipper" | "consignee" | "notify_party" | "port_of_loading" | "port_of_discharge" | "container_count" | "gross_weight_kg";
 
 export type SourceLocator =
@@ -53,6 +53,8 @@ export interface FieldComparison {
   si: ExtractedField | null;
   bl: ExtractedField | null;
   reason: string;
+  comparison_method?: ComparisonMethod | null;
+  equivalence_reason?: string | null;
 }
 
 export type ShippingFields = Partial<Record<ShippingField, ExtractedField | null>>;

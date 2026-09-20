@@ -10,5 +10,5 @@ export interface SourceDocument {
 }
 
 export type EvidenceSourceContext =
-  | { kind: "case"; emailId: string; mockMode: boolean }
+  | { kind: "case"; emailId: string; mockMode: boolean; siAttachment: string | null; blAttachment: string | null }
   | { kind: "upload"; comparisonId: string; siFile: UploadedFileReference; blFile: UploadedFileReference };

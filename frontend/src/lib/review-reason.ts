@@ -17,10 +17,6 @@ export const reviewReasonDisplays: Record<ReviewReason, { label: string; message
     label: "Missing Value",
     message: "One or more required fields could not be extracted.",
   },
-  low_confidence_extraction: {
-    label: "Low-confidence Extraction",
-    message: "One or more document fields could not be read with sufficient confidence.",
-  },
 };
 
 export const reviewReasons: ReviewReason[] = [
@@ -28,7 +24,6 @@ export const reviewReasons: ReviewReason[] = [
   "missing_value",
   "unreadable",
   "wrong_doc_type",
-  "low_confidence_extraction",
 ];
 
 export function getReviewReasonDisplay(reviewReason: ReviewReason | null | undefined) {

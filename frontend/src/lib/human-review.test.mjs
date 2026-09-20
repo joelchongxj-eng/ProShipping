@@ -26,10 +26,11 @@ test("keeps only backend BL comparison cases requiring attention", () => {
 test("declares the complete planned Human Review status contract", () => {
   assert.deepEqual(humanReviewStatuses, [
     "PENDING",
+    "IN_REVIEW",
     "CONFIRMED",
     "CORRECTED",
     "ACCEPTED_EQUIVALENT",
-    "MARKED_UNREADABLE",
+    "UNREADABLE",
     "RETRY_REQUESTED",
     "ESCALATED",
   ]);

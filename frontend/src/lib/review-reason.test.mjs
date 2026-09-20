@@ -19,10 +19,6 @@ test("returns user-friendly Needs Review explanations", () => {
     label: "Missing Value",
     message: "One or more required fields could not be extracted.",
   });
-  assert.deepEqual(getReviewReasonDisplay("low_confidence_extraction"), {
-    label: "Low-confidence Extraction",
-    message: "One or more document fields could not be read with sufficient confidence.",
-  });
 });
 
 test("returns an honest fallback when no review reason is supplied", () => {

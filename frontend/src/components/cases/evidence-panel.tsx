@@ -2,6 +2,7 @@ import type { FieldComparison } from "@/types/verification";
 import type { EvidenceSourceContext } from "@/types/source";
 import { SourceActions } from "./source-actions";
 import { ConfidenceDisplay } from "./extracted-value";
+import { comparisonMethodLabels, formatSourceLocator } from "@/lib/source-locator";
 
 export function EvidencePanel({ label, comparison, sourceContext }: { label: string; comparison: FieldComparison; sourceContext: EvidenceSourceContext }) {
   return (
@@ -14,14 +15,16 @@ export function EvidencePanel({ label, comparison, sourceContext }: { label: str
             <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
             <p className="break-words text-sm">Value: {value?.raw_value || "Unavailable"}</p>
             <ConfidenceDisplay confidence={value?.confidence ?? null} />
-            <p className="text-xs text-slate-500">Page: {value?.page ?? "Unavailable"}</p>
-            <blockquote className="whitespace-pre-wrap break-words border-l-2 border-slate-300 bg-slate-50 p-3 text-sm leading-6 text-slate-700">{value?.evidence || "No source evidence available."}</blockquote>
+            {formatSourceLocator(value) && <p className="text-xs text-slate-500">Source: {formatSourceLocator(value)}</p>}
+            <blockquote className="whitespace-pre-wrap break-words border-l-2 border-slate-300 bg-slate-50 p-3 text-sm leading-6 text-slate-700">{value?.source?.evidence_text || value?.evidence || "No source evidence available."}</blockquote>
           </div>
         ))}
       </div>
       <div className="mt-4 border-t border-slate-200 pt-3">
         <h3 className="text-xs font-semibold text-slate-600">Comparison reason</h3>
         <p className="mt-1 text-sm leading-6">{comparison.reason || "No comparison reason available."}</p>
+        {comparison.comparison_method && <p className="mt-2 text-xs text-slate-600">Method: {comparisonMethodLabels[comparison.comparison_method]}</p>}
+        {comparison.equivalence_reason && <p className="mt-2 text-sm leading-6"><span className="font-medium">Equivalence reason:</span> {comparison.equivalence_reason}</p>}
       </div>
     </section>
   );

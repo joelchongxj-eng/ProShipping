@@ -9,7 +9,7 @@ export function StatusSection({ group, title, cases }: { group: BoardGroup; titl
   const headingId = `section-${group}`;
   const remaining = Math.max(0, cases.length - PREVIEW_LIMIT);
   return (
-    <section aria-labelledby={headingId} className="flex h-[356px] min-w-0 flex-col overflow-hidden rounded-md border border-slate-200 bg-white">
+    <section aria-labelledby={headingId} className="flex h-[392px] min-w-0 flex-col overflow-hidden rounded-md border border-slate-200 bg-white">
       <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4">
         <h2 id={headingId} className="flex items-center gap-2 text-sm font-semibold text-slate-950">
           <span aria-hidden="true" className={`size-2.5 rounded-full border ${statusStyles[group]}`} />

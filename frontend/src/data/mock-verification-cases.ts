@@ -373,7 +373,7 @@ export const mock_verification_cases: VerificationCase[] = [
     },
     "category": "BL_COMPARISON",
     "status": "NEEDS_REVIEW",
-    "review_reason": "low_confidence_extraction",
+    "review_reason": "unreadable",
     "si_attachment": "/demo-documents/PS-DEMO-003-SI.pdf",
     "bl_attachment": "/demo-documents/PS-DEMO-003-BL.pdf",
     "comparison": [

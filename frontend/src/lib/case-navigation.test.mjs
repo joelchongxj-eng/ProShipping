@@ -12,6 +12,7 @@ test("builds encoded case links with an explicit return destination", () => {
 test("accepts known internal destinations and rejects unsafe return values", () => {
   assert.equal(resolveCaseReturnHref("/inbox"), "/inbox");
   assert.equal(resolveCaseReturnHref("/review"), "/review");
+  assert.equal(resolveCaseReturnHref("/submission"), "/submission");
   assert.equal(resolveCaseReturnHref("/cases?status=MISMATCH"), "/cases?status=MISMATCH");
   assert.equal(resolveCaseReturnHref("https://example.com"), "/");
   assert.equal(resolveCaseReturnHref("//example.com/path"), "/");
@@ -22,6 +23,7 @@ test("creates contextual labels from the validated return destination", () => {
   assert.equal(getCaseReturnLabel("/"), "Back to Dashboard");
   assert.equal(getCaseReturnLabel("/inbox"), "Back to Inbox");
   assert.equal(getCaseReturnLabel("/review"), "Back to Human Review");
+  assert.equal(getCaseReturnLabel("/submission"), "Back to Submission");
   assert.equal(getCaseReturnLabel("/cases?status=MISMATCH"), "Back to Mismatch Cases");
   assert.equal(
     getCaseReturnLabel(

@@ -43,7 +43,6 @@ export function countReviewReasons(cases: VerificationCase[]): Record<ReviewReas
     missing_value: groups.missing_value.length,
     unreadable: groups.unreadable.length,
     wrong_doc_type: groups.wrong_doc_type.length,
-    low_confidence_extraction: groups.low_confidence_extraction.length,
   };
 }
 
@@ -53,7 +52,6 @@ export function groupReviewReasonCases(cases: VerificationCase[]): Record<Review
     missing_value: cases.filter((item) => item.status === "NEEDS_REVIEW" && item.review_reason === "missing_value"),
     unreadable: cases.filter((item) => item.status === "NEEDS_REVIEW" && item.review_reason === "unreadable"),
     wrong_doc_type: cases.filter((item) => item.status === "NEEDS_REVIEW" && item.review_reason === "wrong_doc_type"),
-    low_confidence_extraction: cases.filter((item) => item.status === "NEEDS_REVIEW" && item.review_reason === "low_confidence_extraction"),
   };
 }
 
@@ -79,7 +77,7 @@ export function resolveCaseFilter(params: Record<string, string | string[] | und
           : normalizedStatus === "FAILED" ? "failed"
             : null;
   if (!group) return "invalid";
-  const validReasons: ReviewReason[] = ["missing_attachment", "missing_value", "unreadable", "wrong_doc_type", "low_confidence_extraction"];
+  const validReasons: ReviewReason[] = ["missing_attachment", "missing_value", "unreadable", "wrong_doc_type"];
   if (review_reason && !validReasons.includes(review_reason as ReviewReason)) return "invalid";
   return { group, reviewReason: review_reason as ReviewReason | undefined };
 }
