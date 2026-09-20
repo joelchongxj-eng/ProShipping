@@ -137,16 +137,11 @@ async def health() -> dict[str, str]:
 
 @app.post("/api/compare-upload", response_model=UploadComparisonResponse)
 async def compare_upload(
-    si_file: Annotated[list[UploadFile] | None, File()] = None,
-    bl_file: Annotated[list[UploadFile] | None, File()] = None,
+    si_file: Annotated[UploadFile, File()],
+    bl_file: Annotated[UploadFile, File()],
 ) -> UploadComparisonResponse:
-    if si_file is None or len(si_file) != 1:
-        raise HTTPException(status_code=400, detail="Exactly one SI file is required.")
-    if bl_file is None or len(bl_file) != 1:
-        raise HTTPException(status_code=400, detail="Exactly one BL file is required.")
-
-    si_filename, si_extension, si_content = await _read_upload(si_file[0], "si")
-    bl_filename, bl_extension, bl_content = await _read_upload(bl_file[0], "bl")
+    si_filename, si_extension, si_content = await _read_upload(si_file, "si")
+    bl_filename, bl_extension, bl_content = await _read_upload(bl_file, "bl")
     comparison_id = str(uuid4())
     si_source_filename = f"uploads/{comparison_id}/si/{si_filename}"
     bl_source_filename = f"uploads/{comparison_id}/bl/{bl_filename}"

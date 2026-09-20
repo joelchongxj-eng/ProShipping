@@ -1,7 +1,11 @@
+from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError, field_validator
+
+
+_DATETIME_ADAPTER = TypeAdapter(datetime)
 
 
 class EmailCategory(StrEnum):
@@ -45,6 +49,17 @@ class EmailRecord(BaseModel):
     subject: str
     body: str
     attachments: list[str] = Field(default_factory=list)
+    received_at: datetime | None = None
+
+    @field_validator("received_at", mode="before")
+    @classmethod
+    def invalid_received_at_is_unavailable(cls, value: object) -> datetime | None:
+        if value is None:
+            return None
+        try:
+            return _DATETIME_ADAPTER.validate_python(value)
+        except (ValidationError, TypeError, ValueError):
+            return None
 
     model_config = {"populate_by_name": True}
 

@@ -267,43 +267,49 @@ def test_compare_upload_returns_needs_review_for_unprocessable_documents(
     assert payload["comparison"] == []
 
 
+def test_compare_upload_openapi_requires_single_file_per_role() -> None:
+    schema = main.app.openapi()
+    request_schema = schema["paths"]["/api/compare-upload"]["post"][
+        "requestBody"
+    ]["content"]["multipart/form-data"]["schema"]
+    component_name = request_schema["$ref"].rsplit("/", 1)[-1]
+    body_schema = schema["components"]["schemas"][component_name]
+
+    assert body_schema["required"] == ["si_file", "bl_file"]
+    assert body_schema["properties"]["si_file"]["type"] == "string"
+    assert body_schema["properties"]["si_file"]["contentMediaType"] == (
+        "application/octet-stream"
+    )
+    assert body_schema["properties"]["bl_file"]["type"] == "string"
+    assert body_schema["properties"]["bl_file"]["contentMediaType"] == (
+        "application/octet-stream"
+    )
+
+
 @pytest.mark.parametrize(
-    ("files", "detail"),
+    ("files", "missing_field"),
     (
         (
             (("bl_file", ("bl.txt", SI_TEXT, "text/plain")),),
-            "Exactly one SI file is required.",
+            "si_file",
         ),
         (
             (("si_file", ("si.txt", SI_TEXT, "text/plain")),),
-            "Exactly one BL file is required.",
-        ),
-        (
-            (
-                ("si_file", ("si.txt", SI_TEXT, "text/plain")),
-                ("si_file", ("second.txt", SI_TEXT, "text/plain")),
-                ("bl_file", ("bl.txt", SI_TEXT, "text/plain")),
-            ),
-            "Exactly one SI file is required.",
-        ),
-        (
-            (
-                ("si_file", ("si.txt", SI_TEXT, "text/plain")),
-                ("bl_file", ("bl.txt", SI_TEXT, "text/plain")),
-                ("bl_file", ("second.txt", SI_TEXT, "text/plain")),
-            ),
-            "Exactly one BL file is required.",
+            "bl_file",
         ),
     ),
 )
-def test_compare_upload_requires_exactly_one_file_per_role(
+def test_compare_upload_requires_each_file(
     files: tuple[tuple[str, tuple[str, bytes, str]], ...],
-    detail: str,
+    missing_field: str,
 ) -> None:
     response = TestClient(main.app).post("/api/compare-upload", files=files)
 
-    assert response.status_code == 400
-    assert response.json() == {"detail": detail}
+    assert response.status_code == 422
+    assert any(
+        error["type"] == "missing" and error["loc"] == ["body", missing_field]
+        for error in response.json()["detail"]
+    )
 
 
 @pytest.mark.parametrize(
