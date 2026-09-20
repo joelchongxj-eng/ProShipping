@@ -15,6 +15,9 @@ from app.models import (
     UploadComparisonResponse,
     UploadedFileReference,
 )
+from app.reviews.router import create_review_router
+from app.reviews.service import HumanReviewService
+from app.reviews.store import HumanReviewStore
 from app.services.document_pair import compare_document_pair
 from app.services.processor import CaseProcessor
 from app.services.submission import build_submission_entry
@@ -37,7 +40,19 @@ upload_store = UploadComparisonStore(
     ttl_seconds=int(os.getenv("UPLOAD_TTL_SECONDS", "3600")),
     max_upload_bytes=int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024))),
 )
+human_review_store = HumanReviewStore()
+human_review_service = HumanReviewService(
+    human_review_store,
+    case_lookup=lambda email_id: cases.get(email_id),
+    upload_lookup=lambda comparison_id: (
+        session.response
+        if (session := upload_store.get(comparison_id)) is not None
+        else None
+    ),
+)
+app.include_router(create_review_router(human_review_service))
 app.router.add_event_handler("shutdown", upload_store.close)
+app.router.add_event_handler("shutdown", human_review_store.clear)
 
 ATTACHMENT_MEDIA_TYPES = {
     ".pdf": "application/pdf",
