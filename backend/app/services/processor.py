@@ -11,7 +11,10 @@ from app.models import (
     ReviewReason,
 )
 from app.services.classifier import classify_email
-from app.services.document_pair import compare_document_pair
+from app.services.document_pair import (
+    AIDocumentService,
+    compare_document_pair_with_ai_fallback,
+)
 
 
 def _find_attachment(attachments: list[str], token: str) -> str | None:
@@ -23,9 +26,15 @@ def _find_attachment(attachments: list[str], token: str) -> str | None:
 
 
 class CaseProcessor:
-    def __init__(self, inbox: InboxProtocol, concurrency: int = 12) -> None:
+    def __init__(
+        self,
+        inbox: InboxProtocol,
+        concurrency: int = 12,
+        ai_service: AIDocumentService | None = None,
+    ) -> None:
         self.inbox = inbox
         self._semaphore = asyncio.Semaphore(concurrency)
+        self.ai_service = ai_service
 
     async def process_all(self) -> list[CaseRecord]:
         emails = await self.inbox.list_emails()
@@ -52,11 +61,12 @@ class CaseProcessor:
                 self.inbox.get_attachment(si_path),
                 self.inbox.get_attachment(bl_path),
             )
-            result = compare_document_pair(
+            result = await compare_document_pair_with_ai_fallback(
                 si_path,
                 si_content,
                 bl_path,
                 bl_content,
+                self.ai_service,
             )
             return CaseRecord(
                 email=email,

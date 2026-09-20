@@ -18,7 +18,8 @@ from app.models import (
 from app.reviews.router import create_review_router
 from app.reviews.service import HumanReviewService
 from app.reviews.store import HumanReviewStore
-from app.services.document_pair import compare_document_pair
+from app.services.ai_service import AIService
+from app.services.document_pair import compare_document_pair_with_ai_fallback
 from app.services.processor import CaseProcessor
 from app.services.submission import build_submission_entry
 from app.services.upload_store import UploadComparisonStore
@@ -34,7 +35,8 @@ app.add_middleware(
 )
 
 inbox = InboxClient(os.getenv("INBOX_BASE_URL", "http://localhost:8080"))
-processor = CaseProcessor(inbox)
+ai_service = AIService() if os.getenv("AI_ENABLED", "0") == "1" else None
+processor = CaseProcessor(inbox, ai_service=ai_service)
 cases: dict[str, CaseRecord] = {}
 upload_store = UploadComparisonStore(
     ttl_seconds=int(os.getenv("UPLOAD_TTL_SECONDS", "3600")),
@@ -148,11 +150,12 @@ async def compare_upload(
     comparison_id = str(uuid4())
     si_source_filename = f"uploads/{comparison_id}/si/{si_filename}"
     bl_source_filename = f"uploads/{comparison_id}/bl/{bl_filename}"
-    result = compare_document_pair(
+    result = await compare_document_pair_with_ai_fallback(
         si_source_filename,
         si_content,
         bl_source_filename,
         bl_content,
+        ai_service,
     )
     si_attachment_url = (
         f"/api/upload-comparisons/{comparison_id}/attachments/si"

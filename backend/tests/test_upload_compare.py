@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from openpyxl import Workbook
 
 import app.main as main
+from tests.test_document_text import image_pdf
 
 
 SI_TEXT = b"""Shipper: ACME EXPORT LTD
@@ -128,6 +129,41 @@ def test_compare_upload_accepts_matching_txt_pair() -> None:
         f"/api/upload-comparisons/{comparison_id}/attachments/si"
     )
     assert payload["si_fields"]["shipper"]["source"]["locator"]["kind"] == "txt"
+
+
+def test_compare_upload_uses_scanned_pdf_fallback_without_fabricating_locator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class VisionOnlyAI:
+        def __init__(self) -> None:
+            self.vision_calls = 0
+
+        async def transcribe_image(self, image: bytes, mime_type: str) -> str:
+            self.vision_calls += 1
+            return SI_TEXT.decode()
+
+        async def extract_text(self, text: str, filename: str):
+            pytest.fail("Complete OCR text should not require structured extraction.")
+
+    ai = VisionOnlyAI()
+    monkeypatch.setattr(main, "ai_service", ai, raising=False)
+
+    response = TestClient(main.app).post(
+        "/api/compare-upload",
+        files=(
+            ("si_file", ("shipping_instruction.pdf", image_pdf(), "application/pdf")),
+            ("bl_file", ("draft_bl.pdf", image_pdf(), "application/pdf")),
+        ),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "MATCH"
+    assert ai.vision_calls == 2
+    source = payload["si_fields"]["shipper"]["source"]
+    assert source["filename"].endswith("/si/shipping_instruction.pdf")
+    assert source["evidence_text"] == "Shipper: ACME EXPORT LTD"
+    assert source["locator"] is None
 
 
 def test_uploaded_comparison_and_originals_remain_retrievable() -> None:
