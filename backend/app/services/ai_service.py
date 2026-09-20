@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from app.models import EmailCategory, EmailRecord, ShippingFields
 from app.services.ai_models import Classification, DocumentType, ExtractedDocument, RawDocument, RawField, RawShippingFields
+from app.services.normalization import normalize_container_count, weight_to_kg
 from app.services.text_extractor import _build_field, extract_shipping_fields
 
 
@@ -61,8 +62,8 @@ DOCUMENT_FORMAT = _strict_format("shipping_document", {
 LOADING_PORT_LABEL = r"(?:POL|Load Port|Port of Loading(?: \(POL\))?)"
 FIELD_LABELS = {
     "shipper": r"Shipper(?:/Exporter| \(Principal or Seller\))?",
-    "consignee": r"Consignee(?: \(Non-Negotiable\))?",
-    "notify_party": r"Notify Party(?:/Intermediate Consignee)?",
+    "consignee": r"(?:Consignee(?: \(Non-Negotiable\))?|To the Order of)",
+    "notify_party": r"(?:Notify Party(?:/Intermediate Consignee)?|Notify)",
     "port_of_loading": r"(?:POL|Load Port|Port of Loading(?: \(POL\))?)",
     "port_of_discharge": r"(?:POD|Discharge Port|Port of Discharge(?: \(POD\))?)",
     "container_count": r"(?:Container Count|No\. of Containers or Packages)",
@@ -117,6 +118,16 @@ def _document_type_from_heading(text: str) -> DocumentType | None:
         if re.match(r"^BILL OF LADING(?: \(DRAFT\))?(?::|$)", heading, re.IGNORECASE):
             return DocumentType.BL
     return None
+
+
+def _uncertain_value(name: str, value: str) -> bool:
+    if re.fullmatch(r"(?i)\s*(?:n/?a|not available|tbd|unknown|[?_-]+(?:\s*(?:kg|kgs|mt|mts))?)\s*", value):
+        return True
+    if name == "gross_weight_kg":
+        return weight_to_kg(value) is None
+    if name == "container_count":
+        return normalize_container_count(value) is None
+    return False
 
 
 class AIService:
@@ -229,7 +240,10 @@ class AIService:
                 return ExtractedDocument(
                     document_type=document_type,
                     fields=ShippingFields(**{
-                        name: value.model_copy(update={"page": None})
+                        name: value.model_copy(update={
+                            "page": None,
+                            "confidence": 0.0 if _uncertain_value(name, value.raw_value) else value.confidence,
+                        })
                         for name, value in local_fields
                     }),
                 )
@@ -268,7 +282,10 @@ class AIService:
                 for name, field in raw.fields:
                     local_field = getattr(local_fields, name) if local_fields is not None else None
                     if local_field is not None:
-                        converted[name] = local_field.model_copy(update={"page": None})
+                        converted[name] = local_field.model_copy(update={
+                            "page": None,
+                            "confidence": 0.0 if _uncertain_value(name, local_field.raw_value) else local_field.confidence,
+                        })
                         continue
                     if field is None:
                         converted[name] = None
@@ -281,7 +298,7 @@ class AIService:
                     # Existing comparison threshold is 0.85. This marks a field that passed
                     # source-evidence checks; it is not a calibrated model probability.
                     converted[name] = _build_field(name, value, field.evidence).model_copy(
-                        update={"page": None, "confidence": 0.85}
+                        update={"page": None, "confidence": 0.0 if _uncertain_value(name, value) else 0.85}
                     )
                 return ExtractedDocument(
                     document_type=_document_type_from_heading(text) or raw.document_type,

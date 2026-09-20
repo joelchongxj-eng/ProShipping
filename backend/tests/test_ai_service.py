@@ -245,6 +245,59 @@ async def test_removes_field_labels_from_model_values_but_keeps_source_evidence(
 
 
 @pytest.mark.asyncio
+async def test_removes_order_and_notify_labels_from_model_values():
+    lines = {
+        "consignee": "To the Order of: MOORIM SP CO., LTD",
+        "notify_party": "Notify: MOORIM SP CO., LTD",
+    }
+    text = "BILL OF LADING (DRAFT)\n" + "\n".join(lines.values())
+    fields = {name: {"raw_value": line, "evidence": line} for name, line in lines.items()}
+    client = service_reply([{"document_type": "BL", "fields": fields}])
+
+    result = await AIService("test-key", client=client).extract_text(text, "email_518_BL.txt")
+
+    for name, line in lines.items():
+        field = getattr(result.fields, name)
+        assert field.raw_value == "MOORIM SP CO., LTD"
+        assert field.evidence == line
+
+
+@pytest.mark.asyncio
+async def test_placeholder_weight_is_uncertain_with_source_evidence():
+    text = "SHIPPING INSTRUCTION\nGROSS WEIGHT: ____MT"
+    field = {"raw_value": "____MT", "evidence": "GROSS WEIGHT: ____MT"}
+    client = service_reply([{"document_type": "SI", "fields": {"gross_weight_kg": field}}])
+
+    result = await AIService("test-key", client=client).extract_text(text, "email_518_SI.txt")
+
+    assert result.fields.gross_weight_kg.raw_value == "____MT"
+    assert result.fields.gross_weight_kg.evidence == "GROSS WEIGHT: ____MT"
+    assert result.fields.gross_weight_kg.confidence < 0.85
+
+
+@pytest.mark.asyncio
+async def test_complete_labeled_pdf_keeps_placeholder_port_for_review():
+    text = """SHIPPING INSTRUCTION
+Shipper: ACME PAPER
+Consignee: BUYER LTD
+Notify: BUYER LTD
+POL: NANTONG, CHINA
+POD: N/A
+Container Count: 6
+Gross Weight (KG): 134,586 KG
+"""
+
+    def unexpected_request(request):
+        raise AssertionError("Complete labeled PDF should not call Groq")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(unexpected_request))
+    result = await AIService("test-key", client=client).extract_text(text, "case_SI.pdf")
+
+    assert result.fields.port_of_discharge.raw_value == "N/A"
+    assert result.fields.port_of_discharge.confidence < 0.85
+
+
+@pytest.mark.asyncio
 async def test_separates_shipper_from_to_the_order_of_consignee():
     text = (
         "Shipper (Principal or Seller): APRIL FINE PAPER TRADING\n"
