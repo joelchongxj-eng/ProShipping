@@ -67,14 +67,37 @@ FIELD_PATTERNS: dict[str, tuple[str, ...]] = {
 }
 
 
-def _find_line_value(text: str, patterns: tuple[str, ...]) -> tuple[str, str] | None:
+_FIELD_LABEL_BOUNDARY = re.compile(
+    r"(?<!\S)(?:"
+    + "|".join(
+        rf"(?P<{name}>{'|'.join(f'(?:{pattern})' for pattern in sorted(patterns, key=len, reverse=True))})"
+        for name, patterns in FIELD_PATTERNS.items()
+    )
+    + r")\s*:\s*",
+    flags=re.IGNORECASE,
+)
+
+
+def _find_line_values(text: str) -> dict[str, tuple[str, str]]:
+    found: dict[str, tuple[str, str]] = {}
     for line in text.splitlines():
         stripped = line.strip()
-        for pattern in patterns:
-            match = re.match(rf"^(?:{pattern})\s*:\s*(.+?)\s*$", stripped, flags=re.IGNORECASE)
-            if match:
-                return match.group(1).strip(), stripped
-    return None
+        matches = list(_FIELD_LABEL_BOUNDARY.finditer(stripped))
+        for index, match in enumerate(matches):
+            name = match.lastgroup
+            if name is None or name in found:
+                continue
+            segment_end = (
+                matches[index + 1].start()
+                if index + 1 < len(matches)
+                else len(stripped)
+            )
+            raw_value = stripped[match.end():segment_end].strip()
+            if not raw_value:
+                continue
+            evidence = stripped[match.start():segment_end].strip()
+            found[name] = (raw_value, evidence)
+    return found
 
 
 def _find_evidence_page(
@@ -84,7 +107,7 @@ def _find_evidence_page(
     matching_pages = {
         page.number
         for page in source_pages
-        if evidence in (line.strip() for line in page.text.splitlines())
+        if any(evidence in line.strip() for line in page.text.splitlines())
     }
     return matching_pages.pop() if len(matching_pages) == 1 else None
 
@@ -108,14 +131,20 @@ def _find_source_locator(
     matching_lines = [
         source_line
         for source_line in source_lines
-        if source_line.text.strip() == evidence
+        if source_line.text.strip().count(evidence) == 1
     ]
     if len(matching_lines) != 1:
         return None
 
     source_line = matching_lines[0]
     if source_line.line_number is not None:
-        occurrences = list(re.finditer(re.escape(raw_value), source_line.text))
+        evidence_start = source_line.text.find(evidence)
+        evidence_end = evidence_start + len(evidence)
+        occurrences = [
+            occurrence
+            for occurrence in re.finditer(re.escape(raw_value), source_line.text)
+            if evidence_start <= occurrence.start() and occurrence.end() <= evidence_end
+        ]
         if len(occurrences) != 1:
             return None
         occurrence = occurrences[0]
@@ -134,7 +163,24 @@ def _find_source_locator(
     if source_line.paragraph_index is not None or source_line.table_index is not None:
         if source_line.source_text is None:
             return None
-        occurrences = list(re.finditer(re.escape(raw_value), source_line.source_text))
+        evidence_occurrences = list(
+            re.finditer(re.escape(evidence), source_line.source_text)
+        )
+        if len(evidence_occurrences) == 1:
+            evidence_occurrence = evidence_occurrences[0]
+            occurrences = [
+                occurrence
+                for occurrence in re.finditer(
+                    re.escape(raw_value),
+                    source_line.source_text,
+                )
+                if evidence_occurrence.start() <= occurrence.start()
+                and occurrence.end() <= evidence_occurrence.end()
+            ]
+        else:
+            occurrences = list(
+                re.finditer(re.escape(raw_value), source_line.source_text)
+            )
         if len(occurrences) != 1:
             return None
         occurrence = occurrences[0]
@@ -188,7 +234,7 @@ def _pdf_occurrence_bboxes(
     for source_line in source_lines:
         if source_line.page_number != source_page or source_line.source_text is None:
             continue
-        if evidence is not None and source_line.text.strip() != evidence:
+        if evidence is not None and source_line.text.strip().count(evidence) != 1:
             continue
         for occurrence in re.finditer(re.escape(raw_value), source_line.source_text):
             bbox = _pdf_bbox_for_occurrence(
@@ -276,8 +322,9 @@ def extract_shipping_fields(
     source_lines: tuple[DocumentSourceLine, ...] = (),
 ) -> ShippingFields:
     extracted: dict[str, ExtractedField | None] = {}
-    for name, patterns in FIELD_PATTERNS.items():
-        found = _find_line_value(text, patterns)
+    found_fields = _find_line_values(text)
+    for name in FIELD_PATTERNS:
+        found = found_fields.get(name)
         extracted[name] = (
             _build_field(
                 name,

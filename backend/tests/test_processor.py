@@ -155,6 +155,41 @@ def make_paragraph_docx(
     return content.getvalue()
 
 
+def make_multi_label_paragraph_docx() -> bytes:
+    document = Document()
+    document.add_paragraph("SHIPPING INSTRUCTION")
+    for line in (
+        "Shipper: ABC SDN BHD",
+        "Consignee: XYZ LTD",
+        "Notify Party: XYZ LTD",
+        "Port of Loading: PORT KLANG",
+        "Port of Discharge: SINGAPORE",
+        "Container Count: 2 Gross Weight: 25000 KG",
+    ):
+        document.add_paragraph(line)
+    content = BytesIO()
+    document.save(content)
+    return content.getvalue()
+
+
+def make_matching_multiline_paragraph_docx() -> bytes:
+    document = Document()
+    document.add_paragraph("SHIPPING INSTRUCTION")
+    for line in (
+        "Shipper: ABC SDN BHD",
+        "Consignee: XYZ LTD",
+        "Notify Party: XYZ LTD",
+        "Port of Loading: PORT KLANG",
+        "Port of Discharge: SINGAPORE",
+        "Container Count: 2",
+        "Gross Weight: 25000 KG",
+    ):
+        document.add_paragraph(line)
+    content = BytesIO()
+    document.save(content)
+    return content.getvalue()
+
+
 BL_DOCX = make_docx()
 
 
@@ -555,6 +590,50 @@ async def test_processor_extracts_paragraph_only_docx_with_zero_based_locator() 
         "start_char": 19,
         "end_char": 28,
     }
+
+
+def test_multi_label_docx_preserves_paragraph_locator_and_segment_range() -> None:
+    filename = "attachments/Shipper.docx"
+    document = read_document(filename, make_multi_label_paragraph_docx())
+    fields = extract_shipping_fields(
+        document.text,
+        source_filename=filename,
+        source_lines=document.source_lines,
+    )
+
+    assert fields.container_count is not None
+    assert fields.gross_weight_kg is not None
+    assert fields.container_count.source is not None
+    assert fields.gross_weight_kg.source is not None
+    container_locator = fields.container_count.source.locator
+    weight_locator = fields.gross_weight_kg.source.locator
+    assert container_locator is not None
+    assert weight_locator is not None
+    assert container_locator.paragraph_index == 6
+    assert weight_locator.paragraph_index == 6
+    source_text = document.source_lines[-1].source_text
+    assert source_text is not None
+    assert source_text[container_locator.start_char : container_locator.end_char] == "2"
+    assert source_text[weight_locator.start_char : weight_locator.end_char] == "25000 KG"
+    assert fields.container_count.source.evidence_text == "Container Count: 2"
+    assert fields.gross_weight_kg.source.evidence_text == "Gross Weight: 25000 KG"
+
+
+async def test_multi_label_docx_comparison_does_not_need_review_for_present_weight() -> None:
+    inbox = AttachmentInbox(
+        {
+            "attachments/email_xlsx_SI.docx": make_multi_label_paragraph_docx(),
+            "attachments/email_xlsx_BL.docx": make_matching_multiline_paragraph_docx(),
+        }
+    )
+
+    case = await CaseProcessor(inbox).process_email(inbox.email)
+
+    assert case.status is CaseStatus.MATCH
+    assert case.si_fields is not None
+    assert case.si_fields.container_count is not None
+    assert case.si_fields.gross_weight_kg is not None
+    assert len(case.comparison) == 7
 
 
 @pytest.mark.parametrize(

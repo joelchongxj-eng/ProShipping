@@ -275,3 +275,75 @@ def test_extracts_notify_party_from_supported_labels(label: str) -> None:
     assert fields.notify_party is not None
     assert fields.notify_party.raw_value == "ACME NOTIFY LTD"
     assert fields.notify_party.normalized_value == "acme notify ltd"
+
+
+def test_extracts_container_and_weight_from_one_line() -> None:
+    fields = extract_shipping_fields(
+        "Container Count: 2 Gross Weight: 25000 KG"
+    )
+
+    assert fields.container_count is not None
+    assert fields.gross_weight_kg is not None
+    assert fields.container_count.raw_value == "2"
+    assert fields.container_count.evidence == "Container Count: 2"
+    assert fields.gross_weight_kg.raw_value == "25000 KG"
+    assert fields.gross_weight_kg.evidence == "Gross Weight: 25000 KG"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    (
+        (
+            "Shipper: ABC LTD Consignee: XYZ LTD",
+            {"shipper": "ABC LTD", "consignee": "XYZ LTD"},
+        ),
+        (
+            "Shipper: ABC LTD Consignee: XYZ LTD Notify Party: XYZ LTD",
+            {
+                "shipper": "ABC LTD",
+                "consignee": "XYZ LTD",
+                "notify_party": "XYZ LTD",
+            },
+        ),
+        (
+            "Port of Loading: PORT KLANG Port of Discharge: SINGAPORE",
+            {
+                "port_of_loading": "PORT KLANG",
+                "port_of_discharge": "SINGAPORE",
+            },
+        ),
+    ),
+)
+def test_extracts_multiple_known_labels_from_one_line(
+    text: str,
+    expected: dict[str, str],
+) -> None:
+    fields = extract_shipping_fields(text)
+
+    for field, value in expected.items():
+        extracted = getattr(fields, field)
+        assert extracted is not None
+        assert extracted.raw_value == value
+
+
+def test_existing_single_field_line_keeps_its_value_and_evidence() -> None:
+    fields = extract_shipping_fields("Shipper: ABC LTD")
+
+    assert fields.shipper is not None
+    assert fields.shipper.raw_value == "ABC LTD"
+    assert fields.shipper.evidence == "Shipper: ABC LTD"
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "Shipper: Gross Weight Logistics Sdn Bhd",
+        "Shipper: ABC LTD Gross Weight Logistics Sdn Bhd",
+    ),
+)
+def test_field_words_without_label_colon_do_not_create_false_split(text: str) -> None:
+    fields = extract_shipping_fields(text)
+
+    assert fields.shipper is not None
+    assert fields.shipper.raw_value.endswith("Gross Weight Logistics Sdn Bhd")
+    assert fields.gross_weight_kg is None
