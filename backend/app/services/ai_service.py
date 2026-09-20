@@ -127,6 +127,7 @@ class AIService:
         self.model = model or os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
         self.vision_model = os.getenv("GROQ_VISION_MODEL", "qwen/qwen3.8-27b")
         self.client = client
+        self._vision_semaphore = asyncio.Semaphore(1)
 
     async def _request(self, payload: dict) -> httpx.Response:
         url = "https://api.groq.com/openai/v1/chat/completions"
@@ -192,7 +193,8 @@ class AIService:
             "max_completion_tokens": 4096,
             "reasoning_effort": "none",
         }
-        response = await self._request(payload)
+        async with self._vision_semaphore:
+            response = await self._request(payload)
         try:
             text = response.json()["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError, ValueError) as exc:
@@ -219,7 +221,8 @@ class AIService:
 
     async def extract_text(self, text: str, filename: str) -> ExtractedDocument:
         local_fields = None
-        if filename.casefold().endswith((".docx", ".xlsx")):
+        office_document = filename.casefold().endswith((".docx", ".xlsx"))
+        if office_document or filename.casefold().endswith(".pdf"):
             document_type = _document_type_from_heading(text)
             local_fields = extract_shipping_fields(text)
             if document_type is not None and all(value is not None for _, value in local_fields):
@@ -230,6 +233,8 @@ class AIService:
                         for name, value in local_fields
                     }),
                 )
+            if not office_document:
+                local_fields = None
         prompt = (
             "Identify this shipping document as SI, BL, OTHER, or UNKNOWN from its contents. "
             "A 'BILL OF LADING INSTRUCTION' is an SI, not a BL. "

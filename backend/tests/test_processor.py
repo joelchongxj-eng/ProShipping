@@ -1,3 +1,4 @@
+import asyncio
 import json
 from io import BytesIO
 
@@ -202,6 +203,9 @@ async def test_ai_sends_pdf_without_extractable_text_to_review() -> None:
 
 
 async def test_ai_processes_scanned_pdf_pair_through_vision() -> None:
+    active = 0
+    max_active = 0
+
     class ScannedInbox(FakeInbox):
         def __init__(self):
             super().__init__()
@@ -215,7 +219,12 @@ async def test_ai_processes_scanned_pdf_pair_through_vision() -> None:
             return Classification(category=EmailCategory.BL_COMPARISON, reason="Compare", uncertain=False)
 
         async def transcribe_image(self, image, mime_type):
+            nonlocal active, max_active
             assert mime_type == "image/png"
+            active += 1
+            max_active = max(max_active, active)
+            await asyncio.sleep(0)
+            active -= 1
             return "SHIPPING INSTRUCTION\nContainer Count: 2"
 
         async def extract_text(self, text, filename):
@@ -227,6 +236,7 @@ async def test_ai_processes_scanned_pdf_pair_through_vision() -> None:
     case = await CaseProcessor(inbox, ai_service=FakeAI()).process_email(inbox.email)
     assert case.status is CaseStatus.NEEDS_REVIEW
     assert case.review_reason is ReviewReason.MISSING_VALUE
+    assert max_active == 1
 
 
 @pytest.mark.parametrize("extension,member,xml", [

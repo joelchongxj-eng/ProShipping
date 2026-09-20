@@ -106,6 +106,7 @@ def attachment_text(content: bytes, path: str) -> str:
 
 def _focus_scan_image(image_data: bytes) -> bytes:
     image = Image.open(BytesIO(image_data)).convert("RGB")
+    original_width = image.width
     dark = image.convert("L").point(lambda value: 255 if value < 180 else 0)
     bounds = dark.getbbox()
     if bounds is not None:
@@ -114,6 +115,8 @@ def _focus_scan_image(image_data: bytes) -> bytes:
         box = (max(0, left - margin), max(0, top - margin),
                min(image.width, right + margin), min(image.height, bottom + margin))
         image = image.crop(box)
+    if original_width >= 1000 and image.width < 600:
+        image = image.resize((image.width * 3, image.height * 3), Image.Resampling.LANCZOS)
     output = BytesIO()
     image.save(output, format="PNG")
     return output.getvalue()

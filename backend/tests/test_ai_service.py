@@ -78,6 +78,29 @@ async def test_retries_groq_short_rate_limit():
 
 
 @pytest.mark.asyncio
+async def test_vision_requests_are_serialized_across_cases():
+    active = 0
+    max_active = 0
+
+    async def handler(request):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0)
+        active -= 1
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Shipper: ACME"}}]})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = AIService("test-key", client=client)
+    results = await asyncio.gather(
+        service.transcribe_image(b"image1", "image/png"),
+        service.transcribe_image(b"image2", "image/png"),
+    )
+    assert results == ["Shipper: ACME", "Shipper: ACME"]
+    assert max_active == 1
+
+
+@pytest.mark.asyncio
 async def test_classifies_email_into_existing_backend_category():
     client = service_reply([{"category": "BL_COMPARISON", "reason": "Asks to check SI against draft BL", "uncertain": False}])
     email = EmailRecord(email_id="email_001", **{"from": "person@example.com"}, subject="Please check documents", body="Compare the attached SI and BL", attachments=[])
@@ -101,7 +124,8 @@ async def test_extracts_evidenced_values_and_normalizes_weight_locally():
 
 
 @pytest.mark.asyncio
-async def test_complete_labeled_office_document_uses_deterministic_fields():
+@pytest.mark.parametrize("filename", ["email_055_BL.docx", "email_513_BL.pdf"])
+async def test_complete_labeled_document_uses_deterministic_fields(filename):
     text = """BILL OF LADING (DRAFT)
 Shipper (Principal or Seller): APRIL FINE PAPER TRADING | 77 ROBINSON ROAD
 Consignee: AL GURG STATIONERY LLC | P.O. BOX 5069
@@ -113,10 +137,10 @@ Gross Wt (kgs): 243,588
 """
 
     def unexpected_request(request):
-        raise AssertionError("Complete labeled Office document should not call Groq")
+        raise AssertionError("Complete labeled document should not call Groq")
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(unexpected_request))
-    result = await AIService("test-key", client=client).extract_text(text, "email_055_BL.docx")
+    result = await AIService("test-key", client=client).extract_text(text, filename)
     assert result.document_type == "BL"
     assert result.fields.shipper.raw_value == "APRIL FINE PAPER TRADING | 77 ROBINSON ROAD"
     assert result.fields.container_count.normalized_value == "12"

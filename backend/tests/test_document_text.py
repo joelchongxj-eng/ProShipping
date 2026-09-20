@@ -85,6 +85,18 @@ def test_scan_image_returns_png_even_when_source_is_jpeg():
     assert _focus_scan_image(original.getvalue()).startswith(b"\x89PNG")
 
 
+def test_small_text_region_in_scanned_page_is_upscaled_for_vision():
+    source = Image.new("RGB", (1240, 1754), "white")
+    ImageDraw.Draw(source).rectangle((100, 100, 300, 500), fill="black")
+    original = BytesIO()
+    source.save(original, format="PNG")
+
+    focused = Image.open(BytesIO(_focus_scan_image(original.getvalue())))
+    assert focused.width >= 600
+    assert focused.width < source.width
+    assert focused.getpixel((focused.width // 2, focused.height // 2)) == (0, 0, 0)
+
+
 def test_extracts_docx_paragraphs_and_table_cells_in_document_order():
     xml = """<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
       <w:p><w:r><w:t>BILL OF LADING (DRAFT)</w:t></w:r></w:p>

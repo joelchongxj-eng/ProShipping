@@ -83,10 +83,8 @@ class CaseProcessor:
                     self.inbox.get_attachment(bl_path),
                 )
                 if self.ai_service:
-                    si_text, bl_text = await asyncio.gather(
-                        attachment_text_with_vision(si_text, si_path, self.ai_service),
-                        attachment_text_with_vision(bl_text, bl_path, self.ai_service),
-                    )
+                    si_text = await attachment_text_with_vision(si_text, si_path, self.ai_service)
+                    bl_text = await attachment_text_with_vision(bl_text, bl_path, self.ai_service)
                     si_doc, bl_doc = await asyncio.gather(
                         self.ai_service.extract_text(si_text, si_path),
                         self.ai_service.extract_text(bl_text, bl_path),
