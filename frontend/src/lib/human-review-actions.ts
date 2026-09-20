@@ -9,6 +9,7 @@ export const reviewActionLabels: Record<ReviewAction, string> = {
   ADD_NOTE: "Add Note",
   RETRY: "Retry",
   ESCALATE: "Escalate",
+  REQUEST_INFORMATION: "Request Information",
 };
 
 export const reviewActionDescriptions: Record<ReviewAction, string> = {
@@ -18,7 +19,8 @@ export const reviewActionDescriptions: Record<ReviewAction, string> = {
   UNREADABLE: "Mark the selected SI or Draft BL value as unreadable.",
   ADD_NOTE: "Add a case-level reviewer note without changing the automated result.",
   RETRY: "Run backend reprocessing and record the retry result separately.",
-  ESCALATE: "Create a field escalation and immediately attempt supervisor email delivery.",
+  ESCALATE: "Add the selected field to Supervisor Escalations for a later submission.",
+  REQUEST_INFORMATION: "Add the selected field to Sender Follow-Up with a request for clarification.",
 };
 
 export interface ReviewActionAvailability {
@@ -35,7 +37,7 @@ export function getReviewActionAvailability(
     return { enabled: false, tooltip: "Failed processing cases are not reviewable in the current backend." };
   }
 
-  if (["CORRECT", "EQUIVALENT", "UNREADABLE", "ESCALATE"].includes(action) && !selectedField) {
+  if (["CORRECT", "EQUIVALENT", "UNREADABLE", "ESCALATE", "REQUEST_INFORMATION"].includes(action) && !selectedField) {
     return { enabled: false, tooltip: "Select a comparison field first." };
   }
 
@@ -50,13 +52,19 @@ export function getReviewActionAvailability(
     return { enabled: false, tooltip: "Unreadable requires an available SI or Draft BL attachment." };
   }
 
-  if (["RETRY", "ESCALATE"].includes(action) && !["MISMATCH", "NEEDS_REVIEW"].includes(item.status)) {
+  if (["RETRY", "ESCALATE", "REQUEST_INFORMATION"].includes(action) && !["MISMATCH", "NEEDS_REVIEW"].includes(item.status)) {
     return {
       enabled: false,
       tooltip: action === "RETRY"
         ? "Retry is only available for Mismatch or Needs Review cases."
-        : "Escalation is only available for Mismatch or Needs Review cases.",
+        : action === "ESCALATE"
+          ? "Escalation is only available for Mismatch or Needs Review cases."
+          : "Information requests are only available for Mismatch or Needs Review cases.",
     };
+  }
+
+  if (action === "REQUEST_INFORMATION" && !item.email.from.trim()) {
+    return { enabled: false, tooltip: "Request Information requires a sender address from the backend." };
   }
 
   return { enabled: true, tooltip: reviewActionDescriptions[action] };
@@ -69,6 +77,7 @@ export interface ReviewActionFormValues {
   escalationReason: string;
   reviewerAction: string;
   requestedDecision: string;
+  requestReason: string;
 }
 
 export function buildCaseReviewRequest(
@@ -97,6 +106,16 @@ export function buildCaseReviewRequest(
   if (action === "UNREADABLE") {
     return { scope: "FIELD", action, field: selectedField, side: values.side, ...optionalNote };
   }
+  if (action === "REQUEST_INFORMATION") {
+    return {
+      scope: "FIELD",
+      action,
+      field: selectedField,
+      side: "BOTH",
+      request_reason: values.requestReason.trim(),
+      ...optionalNote,
+    };
+  }
   return {
     scope: "FIELD",
     action: "ESCALATE",
@@ -116,5 +135,6 @@ export const reviewActionSuccessMessages: Record<ReviewAction, string> = {
   UNREADABLE: "Value marked unreadable.",
   ADD_NOTE: "Note added.",
   RETRY: "Retry completed. Review the retry history for its result.",
-  ESCALATE: "Case escalated. Review the escalation history for email delivery status.",
+  ESCALATE: "Case added to Supervisor Escalations.",
+  REQUEST_INFORMATION: "Information request added to Sender Follow-Up.",
 };

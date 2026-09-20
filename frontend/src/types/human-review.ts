@@ -2,7 +2,7 @@ import type { CaseStatus, FieldStatus, ReviewReason, ShippingField, Verification
 import type { UploadComparisonResponse } from "./upload";
 
 export type ReviewTargetType = "COMPETITION_CASE" | "UPLOAD_COMPARISON";
-export type ReviewAction = "CONFIRM" | "CORRECT" | "EQUIVALENT" | "UNREADABLE" | "ADD_NOTE" | "RETRY" | "ESCALATE";
+export type ReviewAction = "CONFIRM" | "CORRECT" | "EQUIVALENT" | "UNREADABLE" | "ADD_NOTE" | "RETRY" | "ESCALATE" | "REQUEST_INFORMATION";
 export type ReviewScope = "CASE" | "FIELD";
 export type ReviewSide = "SI" | "BL" | "BOTH";
 
@@ -14,7 +14,8 @@ export type HumanReviewStatus =
   | "ACCEPTED_EQUIVALENT"
   | "UNREADABLE"
   | "RETRY_REQUESTED"
-  | "ESCALATED";
+  | "ESCALATED"
+  | "INFORMATION_REQUESTED";
 
 export type EscalationDeliveryStatus = "SENT" | "FAILED" | "NOT_CONFIGURED";
 export type RetryExecutionStatus = "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED";
@@ -29,6 +30,7 @@ export interface CreateHumanReviewRequest {
   escalation_reason?: string;
   reviewer_action?: string;
   requested_decision?: string;
+  request_reason?: string;
 }
 
 export interface HumanReviewRecord {
@@ -49,6 +51,7 @@ export interface HumanReviewRecord {
   review_status: HumanReviewStatus;
   is_escalated: boolean;
   escalation_reason: string | null;
+  request_reason: string | null;
   escalated_at: string | null;
   automated_result_hash: string;
   created_at: string;

@@ -23,6 +23,7 @@ const reviewStatusStyles: Record<HumanReviewStatus, string> = {
   UNREADABLE: "border-yellow-300 bg-yellow-50 text-yellow-900",
   RETRY_REQUESTED: "border-yellow-300 bg-yellow-50 text-yellow-900",
   ESCALATED: "border-purple-300 bg-purple-50 text-purple-800",
+  INFORMATION_REQUESTED: "border-blue-200 bg-blue-50 text-blue-800",
 };
 
 export function HumanReviewStatusBadge({ status }: { status: HumanReviewStatus }) {
@@ -66,7 +67,7 @@ function ReviewSummaryContent({ summary }: { summary: HumanReviewSummary }) {
 
 function ReviewHistoryContent({ history }: { history: HumanReviewHistory }) {
   if (history.reviews.length === 0) return <p className="text-sm text-slate-600">No review history yet.</p>;
-  return <ol className="divide-y divide-slate-200 rounded border border-slate-200">{history.reviews.map((record) => <li key={record.review_id} className="p-3"><div className="flex flex-wrap items-start justify-between gap-2"><p className="text-sm font-medium text-slate-900">{reviewActionLabels[record.action]}</p><time className="text-xs text-slate-500" dateTime={record.created_at}>{formatBackendTimestamp(record.created_at)}</time></div><p className="mt-1 text-xs text-slate-600">{record.scope === "CASE" ? "Case-level review" : `${record.field ? shippingFieldLabels[record.field] : "Field"}${record.side ? ` · ${reviewSideLabels[record.side]}` : ""}`}</p>{record.original_value !== null && <p className="mt-2 text-xs text-slate-600">Automated value: {record.original_value}</p>}{record.corrected_value !== null && <p className="mt-1 text-xs font-medium text-slate-800">Corrected value: {record.corrected_value}</p>}{record.note && <p className="mt-2 text-sm leading-5 text-slate-700">{record.note}</p>}{record.escalation_reason && <p className="mt-2 text-xs text-purple-800">Escalation: {record.escalation_reason}</p>}</li>)}</ol>;
+  return <ol className="divide-y divide-slate-200 rounded border border-slate-200">{history.reviews.map((record) => <li key={record.review_id} className="p-3"><div className="flex flex-wrap items-start justify-between gap-2"><p className="text-sm font-medium text-slate-900">{reviewActionLabels[record.action]}</p><time className="text-xs text-slate-500" dateTime={record.created_at}>{formatBackendTimestamp(record.created_at)}</time></div><p className="mt-1 text-xs text-slate-600">{record.scope === "CASE" ? "Case-level review" : `${record.field ? shippingFieldLabels[record.field] : "Field"}${record.side ? ` · ${reviewSideLabels[record.side]}` : ""}`}</p>{record.original_value !== null && <p className="mt-2 text-xs text-slate-600">Automated value: {record.original_value}</p>}{record.corrected_value !== null && <p className="mt-1 text-xs font-medium text-slate-800">Corrected value: {record.corrected_value}</p>}{record.note && <p className="mt-2 text-sm leading-5 text-slate-700">{record.note}</p>}{record.escalation_reason && <p className="mt-2 text-xs text-purple-800">Escalation: {record.escalation_reason}</p>}{record.request_reason && <p className="mt-2 text-xs text-blue-800">Information requested: {record.request_reason}</p>}</li>)}</ol>;
 }
 
 function RetryContent({ retries }: { retries: RetryAttemptHistory }) {

@@ -19,6 +19,7 @@ export const reviewActionLabels: Record<ReviewAction, string> = {
   ADD_NOTE: "Added note",
   RETRY: "Requested retry",
   ESCALATE: "Escalated",
+  REQUEST_INFORMATION: "Requested information",
 };
 
 export const humanReviewStatusLabels: Record<HumanReviewStatus, string> = {
@@ -30,6 +31,7 @@ export const humanReviewStatusLabels: Record<HumanReviewStatus, string> = {
   UNREADABLE: "Marked Unreadable",
   RETRY_REQUESTED: "Retry Requested",
   ESCALATED: "Escalated",
+  INFORMATION_REQUESTED: "Information Requested",
 };
 
 export const reviewSideLabels: Record<ReviewSide, string> = {

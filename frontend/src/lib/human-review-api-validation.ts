@@ -12,11 +12,12 @@ import type {
   RetryAttemptHistory,
 } from "@/types/human-review";
 import { isObject, isUploadComparisonResponse, isVerificationCase } from "./api-validation";
+import { backendHumanReviewStatuses, backendReviewActions, isBackendReviewTargetType } from "./human-review-contract";
 
 const caseStatuses = ["MATCH", "MISMATCH", "NEEDS_REVIEW", "FAILED"];
 const reviewReasons = ["missing_attachment", "missing_value", "unreadable", "wrong_doc_type"];
-const reviewStatuses = ["PENDING", "IN_REVIEW", "CONFIRMED", "CORRECTED", "ACCEPTED_EQUIVALENT", "UNREADABLE", "RETRY_REQUESTED", "ESCALATED"];
-const reviewActions = ["CONFIRM", "CORRECT", "EQUIVALENT", "UNREADABLE", "ADD_NOTE", "RETRY", "ESCALATE"];
+const reviewStatuses: readonly string[] = backendHumanReviewStatuses;
+const reviewActions: readonly string[] = backendReviewActions;
 const retryStatuses = ["PENDING", "RUNNING", "SUCCEEDED", "FAILED"];
 const deliveryStatuses = ["SENT", "FAILED", "NOT_CONFIGURED"];
 const shippingFields = ["shipper", "consignee", "notify_party", "port_of_loading", "port_of_discharge", "container_count", "gross_weight_kg"];
@@ -28,14 +29,18 @@ function optionalString(value: unknown): boolean {
   return value === null || typeof value === "string";
 }
 
-function enumOrNull(value: unknown, values: string[]): boolean {
+function enumOrNull(value: unknown, values: readonly string[]): boolean {
   return value === null || (typeof value === "string" && values.includes(value));
+}
+
+function isReviewTargetType(value: unknown): boolean {
+  return isBackendReviewTargetType(value);
 }
 
 function isReviewRecord(value: unknown): value is HumanReviewRecord {
   return isObject(value)
     && typeof value.review_id === "string"
-    && value.target_type === "COMPETITION_CASE"
+    && isReviewTargetType(value.target_type)
     && typeof value.target_id === "string"
     && typeof value.scope === "string" && reviewScopes.includes(value.scope)
     && enumOrNull(value.field, shippingFields)
@@ -51,6 +56,7 @@ function isReviewRecord(value: unknown): value is HumanReviewRecord {
     && typeof value.review_status === "string" && reviewStatuses.includes(value.review_status)
     && typeof value.is_escalated === "boolean"
     && optionalString(value.escalation_reason)
+    && optionalString(value.request_reason)
     && optionalString(value.escalated_at)
     && typeof value.automated_result_hash === "string"
     && typeof value.created_at === "string"
@@ -73,7 +79,7 @@ function isEffectiveFieldValue(value: unknown): value is EffectiveFieldValue {
 
 export function isHumanReviewHistory(value: unknown): value is HumanReviewHistory {
   return isObject(value)
-    && value.target_type === "COMPETITION_CASE"
+    && isReviewTargetType(value.target_type)
     && typeof value.target_id === "string"
     && Array.isArray(value.reviews)
     && value.reviews.every(isReviewRecord);
@@ -81,7 +87,7 @@ export function isHumanReviewHistory(value: unknown): value is HumanReviewHistor
 
 export function isHumanReviewSummary(value: unknown): value is HumanReviewSummary {
   return isObject(value)
-    && value.target_type === "COMPETITION_CASE"
+    && isReviewTargetType(value.target_type)
     && typeof value.target_id === "string"
     && typeof value.automated_status === "string" && caseStatuses.includes(value.automated_status)
     && typeof value.review_status === "string" && reviewStatuses.includes(value.review_status)
@@ -104,7 +110,7 @@ export function isHumanReviewSummary(value: unknown): value is HumanReviewSummar
 function isRetryAttempt(value: unknown): value is RetryAttempt {
   return isObject(value)
     && typeof value.retry_id === "string"
-    && value.target_type === "COMPETITION_CASE"
+    && isReviewTargetType(value.target_type)
     && typeof value.target_id === "string"
     && Number.isInteger(value.attempt_number) && Number(value.attempt_number) >= 1
     && typeof value.requested_review_id === "string"
@@ -121,7 +127,7 @@ function isRetryAttempt(value: unknown): value is RetryAttempt {
 
 export function isRetryAttemptHistory(value: unknown): value is RetryAttemptHistory {
   return isObject(value)
-    && value.target_type === "COMPETITION_CASE"
+    && isReviewTargetType(value.target_type)
     && typeof value.target_id === "string"
     && Array.isArray(value.attempts)
     && value.attempts.every(isRetryAttempt);
@@ -140,7 +146,7 @@ function isDeliveryAttempt(value: unknown): value is EscalationDeliveryAttempt {
 
 export function isHumanReviewQueueItem(value: unknown): value is HumanReviewQueueItem {
   return isObject(value)
-    && value.target_type === "COMPETITION_CASE"
+    && isReviewTargetType(value.target_type)
     && typeof value.target_id === "string"
     && typeof value.email_id === "string"
     && typeof value.sender === "string"
@@ -173,7 +179,7 @@ export function isEscalationAssignment(value: unknown): value is EscalationAssig
   return isObject(value)
     && typeof value.assignment_id === "string"
     && typeof value.review_id === "string"
-    && value.target_type === "COMPETITION_CASE"
+    && isReviewTargetType(value.target_type)
     && typeof value.target_id === "string"
     && typeof value.field === "string" && shippingFields.includes(value.field)
     && optionalString(value.si_value)
@@ -189,7 +195,7 @@ export function isEscalationAssignment(value: unknown): value is EscalationAssig
 
 export function isEscalationAssignmentHistory(value: unknown): value is EscalationAssignmentHistory {
   return isObject(value)
-    && value.target_type === "COMPETITION_CASE"
+    && isReviewTargetType(value.target_type)
     && typeof value.target_id === "string"
     && Array.isArray(value.assignments)
     && value.assignments.every(isEscalationAssignment);

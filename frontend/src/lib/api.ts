@@ -1,4 +1,4 @@
-import type { VerificationCase } from "@/types/verification";
+import type { CaseStatus, VerificationCase } from "@/types/verification";
 import type { UploadComparisonResponse } from "@/types/upload";
 import type {
   CreateHumanReviewRequest,
@@ -146,13 +146,57 @@ export async function getCaseRetryAttempts(emailId: string): Promise<RetryAttemp
 }
 
 export async function createCaseReview(emailId: string, payload: CreateHumanReviewRequest): Promise<HumanReviewRecord> {
-  const data = await request(`/api/cases/${encodeURIComponent(emailId)}/reviews`, {
+  const data = await request(`/api/case-reviews/${encodeURIComponent(emailId)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  }, 120000);
-  if (!isHumanReviewRecord(data) || data.target_id !== emailId) {
+  }, 120000, true);
+  if (!isHumanReviewRecord(data) || data.target_type !== "COMPETITION_CASE" || data.target_id !== emailId) {
     throw new ApiError("The backend returned an invalid Human Review record.", "invalid");
+  }
+  return data;
+}
+
+export async function createUploadReview(comparisonId: string, payload: CreateHumanReviewRequest): Promise<HumanReviewRecord> {
+  const data = await request(`/api/upload-reviews/${encodeURIComponent(comparisonId)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }, 120000, true);
+  if (!isHumanReviewRecord(data) || data.target_type !== "UPLOAD_COMPARISON" || data.target_id !== comparisonId) {
+    throw new ApiError("The backend returned an invalid upload Human Review record.", "invalid");
+  }
+  return data;
+}
+
+export async function getUploadReviewSummary(comparisonId: string): Promise<HumanReviewSummary> {
+  const data = await request(`/api/upload-comparisons/${encodeURIComponent(comparisonId)}/review-summary`);
+  if (!isHumanReviewSummary(data) || data.target_type !== "UPLOAD_COMPARISON" || data.target_id !== comparisonId) {
+    throw new ApiError("The backend returned an invalid upload Human Review summary.", "invalid");
+  }
+  return data;
+}
+
+export async function getUploadReviewHistory(comparisonId: string): Promise<HumanReviewHistory> {
+  const data = await request(`/api/upload-comparisons/${encodeURIComponent(comparisonId)}/reviews`);
+  if (!isHumanReviewHistory(data) || data.target_type !== "UPLOAD_COMPARISON" || data.target_id !== comparisonId) {
+    throw new ApiError("The backend returned invalid upload Human Review history.", "invalid");
+  }
+  return data;
+}
+
+export async function getUploadRetryAttempts(comparisonId: string): Promise<RetryAttemptHistory> {
+  const data = await request(`/api/upload-comparisons/${encodeURIComponent(comparisonId)}/retry-attempts`);
+  if (!isRetryAttemptHistory(data) || data.target_type !== "UPLOAD_COMPARISON" || data.target_id !== comparisonId) {
+    throw new ApiError("The backend returned invalid upload retry history.", "invalid");
+  }
+  return data;
+}
+
+export async function getUploadEscalations(comparisonId: string): Promise<EscalationAssignmentHistory> {
+  const data = await request(`/api/upload-comparisons/${encodeURIComponent(comparisonId)}/escalations`);
+  if (!isEscalationAssignmentHistory(data) || data.target_type !== "UPLOAD_COMPARISON" || data.target_id !== comparisonId) {
+    throw new ApiError("The backend returned invalid upload escalation history.", "invalid");
   }
   return data;
 }
@@ -183,22 +227,40 @@ export function getUploadAttachmentUrl(comparisonId: string, role: "si" | "bl"):
 interface ReviewQueueQuery {
   limit?: number;
   offset?: number;
+  includeMatch?: boolean;
+  search?: string;
+  automatedStatus?: CaseStatus;
   humanReviewStatus?: HumanReviewStatus;
   isEscalated?: boolean;
+  retryRequested?: boolean;
 }
 
 export async function getReviewQueue(query: ReviewQueueQuery = {}): Promise<HumanReviewQueueResponse> {
   const search = new URLSearchParams();
   if (query.limit !== undefined) search.set("limit", String(query.limit));
   if (query.offset !== undefined) search.set("offset", String(query.offset));
+  if (query.includeMatch !== undefined) search.set("include_match", String(query.includeMatch));
+  if (query.search) search.set("search", query.search);
+  if (query.automatedStatus) search.set("automated_status", query.automatedStatus);
   if (query.humanReviewStatus) search.set("human_review_status", query.humanReviewStatus);
   if (query.isEscalated !== undefined) search.set("is_escalated", String(query.isEscalated));
+  if (query.retryRequested !== undefined) search.set("retry_requested", String(query.retryRequested));
   const suffix = search.size > 0 ? `?${search.toString()}` : "";
   const data = await request(`/api/review-queue${suffix}`);
   if (!isHumanReviewQueueResponse(data)) {
     throw new ApiError("The backend returned an invalid Human Review queue.", "invalid");
   }
   return data;
+}
+
+export async function getAllReviewQueueItems(): Promise<HumanReviewQueueResponse["items"]> {
+  const limit = 100;
+  const items: HumanReviewQueueResponse["items"] = [];
+  for (let offset = 0; ; offset += limit) {
+    const page = await getReviewQueue({ limit, offset });
+    items.push(...page.items);
+    if (items.length >= page.total || page.items.length === 0) return items;
+  }
 }
 
 export async function getCaseEscalations(emailId: string): Promise<EscalationAssignmentHistory> {

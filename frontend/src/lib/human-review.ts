@@ -1,5 +1,5 @@
 import type { VerificationCase } from "@/types/verification";
-import type { HumanReviewStatus } from "@/types/human-review";
+import type { HumanReviewQueueItem, HumanReviewStatus } from "@/types/human-review";
 
 export const reviewQueueStatuses = ["MISMATCH", "NEEDS_REVIEW"] as const;
 export const humanReviewStatuses = [
@@ -11,6 +11,7 @@ export const humanReviewStatuses = [
   "UNREADABLE",
   "RETRY_REQUESTED",
   "ESCALATED",
+  "INFORMATION_REQUESTED",
 ] as const satisfies readonly HumanReviewStatus[];
 export const humanReviewStatusLabels: Record<HumanReviewStatus, string> = {
   PENDING: "Pending",
@@ -21,26 +22,15 @@ export const humanReviewStatusLabels: Record<HumanReviewStatus, string> = {
   UNREADABLE: "Marked Unreadable",
   RETRY_REQUESTED: "Retry Requested",
   ESCALATED: "Escalated",
+  INFORMATION_REQUESTED: "Information Requested",
 };
 
 export type AutomatedStatusFilter = "ALL" | (typeof reviewQueueStatuses)[number];
 export type HumanReviewStatusFilter = "ALL" | HumanReviewStatus;
-export type HumanReviewQueueCase = VerificationCase & {
-  /** Optional until the backend adds Human Review state to its response contract. */
-  human_review_status?: HumanReviewStatus | null;
-};
 
 export function isHumanReviewStatus(value: unknown): value is HumanReviewStatus {
   return typeof value === "string"
     && humanReviewStatuses.some((status) => status === value);
-}
-
-export function getHumanReviewStatus(item: HumanReviewQueueCase): HumanReviewStatus | null {
-  return isHumanReviewStatus(item.human_review_status) ? item.human_review_status : null;
-}
-
-export function hasHumanReviewStatusData(cases: HumanReviewQueueCase[]): boolean {
-  return cases.some((item) => getHumanReviewStatus(item) !== null);
 }
 
 export function isReviewQueueCase(item: VerificationCase): boolean {
@@ -48,29 +38,53 @@ export function isReviewQueueCase(item: VerificationCase): boolean {
     && reviewQueueStatuses.some((status) => item.status === status);
 }
 
+export function mockCaseToReviewQueueItem(item: VerificationCase): HumanReviewQueueItem {
+  return {
+    target_type: "COMPETITION_CASE",
+    target_id: item.email.email_id,
+    email_id: item.email.email_id,
+    sender: item.email.from,
+    subject: item.email.subject,
+    received_at: null,
+    automated_status: item.status,
+    review_reason: item.review_reason ?? null,
+    human_review_status: "PENDING",
+    last_reviewed_at: null,
+    is_escalated: false,
+    active_escalation_reason: null,
+    latest_email_delivery_status: null,
+    retry_requested: false,
+    latest_retry_execution_status: null,
+    latest_retry_attempt_number: null,
+    has_human_review: false,
+    latest_review_action: null,
+    latest_review_id: null,
+  };
+}
+
 export function filterReviewQueue(
-  cases: HumanReviewQueueCase[],
+  cases: HumanReviewQueueItem[],
   automatedStatusFilter: AutomatedStatusFilter,
   humanReviewStatusFilter: HumanReviewStatusFilter,
   search: string,
-): HumanReviewQueueCase[] {
+): HumanReviewQueueItem[] {
   const query = search.trim().toLocaleLowerCase();
   return cases.filter((item) => {
     const matchesAutomatedStatus = automatedStatusFilter === "ALL"
-      || item.status === automatedStatusFilter;
+      || item.automated_status === automatedStatusFilter;
     const matchesHumanReviewStatus = humanReviewStatusFilter === "ALL"
-      || getHumanReviewStatus(item) === humanReviewStatusFilter;
+      || item.human_review_status === humanReviewStatusFilter;
     const matchesSearch = !query
-      || item.email.email_id.toLocaleLowerCase().includes(query)
-      || item.email.subject.toLocaleLowerCase().includes(query);
+      || item.email_id.toLocaleLowerCase().includes(query)
+      || item.subject.toLocaleLowerCase().includes(query);
     return matchesAutomatedStatus && matchesHumanReviewStatus && matchesSearch;
   });
 }
 
-export function summarizeReviewQueue(cases: VerificationCase[]) {
+export function summarizeReviewQueue(cases: HumanReviewQueueItem[]) {
   return {
     total: cases.length,
-    mismatch: cases.filter((item) => item.status === "MISMATCH").length,
-    needsReview: cases.filter((item) => item.status === "NEEDS_REVIEW").length,
+    mismatch: cases.filter((item) => item.automated_status === "MISMATCH").length,
+    needsReview: cases.filter((item) => item.automated_status === "NEEDS_REVIEW").length,
   };
 }

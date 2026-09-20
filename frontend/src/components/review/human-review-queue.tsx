@@ -3,19 +3,18 @@
 import Link from "next/link";
 import { useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
+import { HumanReviewStatusBadge } from "@/components/review/human-review-panel";
 import { buildCaseDetailHref } from "@/lib/case-navigation";
 import { getReviewReasonDisplay } from "@/lib/review-reason";
 import {
   filterReviewQueue,
-  getHumanReviewStatus,
-  hasHumanReviewStatusData,
   humanReviewStatuses,
   humanReviewStatusLabels,
   summarizeReviewQueue,
   type AutomatedStatusFilter,
-  type HumanReviewQueueCase,
   type HumanReviewStatusFilter,
 } from "@/lib/human-review";
+import type { HumanReviewQueueItem } from "@/types/human-review";
 
 const automatedStatusFilters: { value: AutomatedStatusFilter; label: string }[] = [
   { value: "ALL", label: "All" },
@@ -31,11 +30,10 @@ const humanReviewStatusFilters: { value: HumanReviewStatusFilter; label: string 
 const cellClass = "block min-w-0 px-3 py-2 lg:table-cell lg:py-3";
 const mobileLabel = "mb-1 block text-xs font-medium text-slate-500 lg:hidden";
 
-export function HumanReviewQueue({ cases }: { cases: HumanReviewQueueCase[] }) {
+export function HumanReviewQueue({ cases }: { cases: HumanReviewQueueItem[] }) {
   const [automatedStatusFilter, setAutomatedStatusFilter] = useState<AutomatedStatusFilter>("ALL");
   const [humanReviewStatusFilter, setHumanReviewStatusFilter] = useState<HumanReviewStatusFilter>("ALL");
   const [search, setSearch] = useState("");
-  const humanReviewStatusAvailable = hasHumanReviewStatusData(cases);
   const shown = filterReviewQueue(cases, automatedStatusFilter, humanReviewStatusFilter, search);
   const summary = summarizeReviewQueue(cases);
 
@@ -73,27 +71,21 @@ export function HumanReviewQueue({ cases }: { cases: HumanReviewQueueCase[] }) {
             </div>
           </fieldset>
 
-          <fieldset aria-describedby={!humanReviewStatusAvailable ? "human-review-status-availability" : undefined}>
+          <fieldset>
             <legend className="mb-1.5 text-xs font-medium text-slate-600">Human Review Status</legend>
             <div className="flex flex-wrap gap-1.5">
               {humanReviewStatusFilters.map((item) => (
                 <button
                   key={item.value}
                   type="button"
-                  disabled={!humanReviewStatusAvailable}
                   aria-pressed={humanReviewStatusFilter === item.value}
                   onClick={() => setHumanReviewStatusFilter(item.value)}
-                  className={`min-h-9 rounded border px-2.5 text-xs font-medium ${humanReviewStatusFilter === item.value ? "border-slate-700 bg-slate-100 text-slate-800" : "border-slate-300 bg-white text-slate-600"} disabled:cursor-not-allowed disabled:opacity-60`}
+                  className={`min-h-9 rounded border px-2.5 text-xs font-medium ${humanReviewStatusFilter === item.value ? "border-slate-700 bg-slate-100 text-slate-800" : "border-slate-300 bg-white text-slate-600"}`}
                 >
                   {item.label}
                 </button>
               ))}
             </div>
-            {!humanReviewStatusAvailable && (
-              <p id="human-review-status-availability" className="mt-1 text-xs leading-4 text-slate-500">
-                Available after Human Review backend integration.
-              </p>
-            )}
           </fieldset>
         </div>
         <label className="w-full text-xs font-medium text-slate-600 lg:max-w-sm">
@@ -127,19 +119,16 @@ export function HumanReviewQueue({ cases }: { cases: HumanReviewQueueCase[] }) {
             </tr>
           </thead>
           <tbody className="block lg:table-row-group">
-            {shown.map((item) => {
-              const humanReviewStatus = getHumanReviewStatus(item);
-              return (
-                <tr key={item.email.email_id} className="grid grid-cols-1 border-b border-slate-200 last:border-b-0 sm:grid-cols-2 lg:table-row lg:hover:bg-slate-50">
-                  <td className={cellClass}><span className={mobileLabel}>Email ID</span><span className="break-all font-mono text-xs">{item.email.email_id}</span></td>
-                  <td className={cellClass}><span className={mobileLabel}>Subject</span><span className="break-words font-medium text-slate-900">{item.email.subject}</span></td>
-                  <td className={cellClass}><span className={mobileLabel}>Automated Status</span><StatusBadge status={item.status} /></td>
-                  <td className={cellClass}><span className={mobileLabel}>Human Review Status</span><span className="inline-block rounded border border-slate-300 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">{humanReviewStatus ? humanReviewStatusLabels[humanReviewStatus] : "Unavailable"}</span></td>
+            {shown.map((item) => (
+                <tr key={item.target_id} className="grid grid-cols-1 border-b border-slate-200 last:border-b-0 sm:grid-cols-2 lg:table-row lg:hover:bg-slate-50">
+                  <td className={cellClass}><span className={mobileLabel}>Email ID</span><span className="break-all font-mono text-xs">{item.email_id}</span></td>
+                  <td className={cellClass}><span className={mobileLabel}>Subject</span><span className="break-words font-medium text-slate-900">{item.subject}</span></td>
+                  <td className={cellClass}><span className={mobileLabel}>Automated Status</span><StatusBadge status={item.automated_status} /></td>
+                  <td className={cellClass}><span className={mobileLabel}>Human Review Status</span><HumanReviewStatusBadge status={item.human_review_status} /></td>
                   <td className={cellClass}><span className={mobileLabel}>Review Reason</span><span className="text-xs text-slate-700">{item.review_reason ? getReviewReasonDisplay(item.review_reason).label : "Not supplied"}</span></td>
-                  <td className={cellClass}><Link prefetch={false} href={buildCaseDetailHref(item.email.email_id, "/review")} className="inline-flex min-h-9 items-center font-medium text-slate-900 underline decoration-slate-300 underline-offset-4 hover:decoration-slate-900">Open Review</Link></td>
+                  <td className={cellClass}><Link prefetch={false} href={buildCaseDetailHref(item.email_id, "/review")} className="inline-flex min-h-9 items-center font-medium text-slate-900 underline decoration-slate-300 underline-offset-4 hover:decoration-slate-900">Open Review</Link></td>
                 </tr>
-              );
-            })}
+            ))}
             {shown.length === 0 && <tr className="block lg:table-row"><td colSpan={6} className="block px-4 py-6 text-sm text-slate-500 lg:table-cell">No review cases match the selected filters.</td></tr>}
           </tbody>
         </table>

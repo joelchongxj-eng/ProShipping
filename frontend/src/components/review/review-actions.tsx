@@ -13,7 +13,7 @@ import { shippingFieldLabels } from "@/lib/human-review-display";
 import type { ReviewAction, ReviewSide } from "@/types/human-review";
 import type { ShippingField, VerificationCase } from "@/types/verification";
 
-const reviewActions: ReviewAction[] = ["CONFIRM", "CORRECT", "EQUIVALENT", "UNREADABLE", "ADD_NOTE", "RETRY", "ESCALATE"];
+const reviewActions: ReviewAction[] = ["CONFIRM", "CORRECT", "EQUIVALENT", "UNREADABLE", "ADD_NOTE", "RETRY", "ESCALATE", "REQUEST_INFORMATION"];
 
 function ActionButton({ action, active, disabled, tooltip, onClick }: {
   action: ReviewAction;
@@ -51,6 +51,7 @@ export function ReviewActions({ item, selectedField }: { item: VerificationCase;
   const [escalationReason, setEscalationReason] = useState("");
   const [reviewerAction, setReviewerAction] = useState("");
   const [requestedDecision, setRequestedDecision] = useState("");
+  const [requestReason, setRequestReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
 
@@ -72,7 +73,7 @@ export function ReviewActions({ item, selectedField }: { item: VerificationCase;
     setSubmitting(true);
     setFeedback(null);
     try {
-      const payload = buildCaseReviewRequest(action, selectedField, { side, correctedValue, note, escalationReason, reviewerAction, requestedDecision });
+      const payload = buildCaseReviewRequest(action, selectedField, { side, correctedValue, note, escalationReason, reviewerAction, requestedDecision, requestReason });
       await createCaseReview(item.email.email_id, payload);
       setFeedback({ tone: "success", message: reviewActionSuccessMessages[action] });
       setCorrectedValue("");
@@ -80,6 +81,7 @@ export function ReviewActions({ item, selectedField }: { item: VerificationCase;
       setEscalationReason("");
       setReviewerAction("");
       setRequestedDecision("");
+      setRequestReason("");
       router.refresh();
     } catch (error) {
       setFeedback({ tone: "error", message: error instanceof ApiError ? error.message : "The review action could not be saved." });
@@ -110,7 +112,7 @@ export function ReviewActions({ item, selectedField }: { item: VerificationCase;
 
       {action && (
         <form onSubmit={submit} className="mt-4 space-y-3 rounded border border-slate-200 bg-slate-50 p-3">
-          {["CORRECT", "EQUIVALENT", "UNREADABLE", "ESCALATE"].includes(action) && selectedField && <div className="text-xs text-slate-600"><span className="font-medium text-slate-800">Selected field:</span> {shippingFieldLabels[selectedField]}</div>}
+          {["CORRECT", "EQUIVALENT", "UNREADABLE", "ESCALATE", "REQUEST_INFORMATION"].includes(action) && selectedField && <div className="text-xs text-slate-600"><span className="font-medium text-slate-800">Selected field:</span> {shippingFieldLabels[selectedField]}</div>}
           {(action === "CORRECT" || action === "UNREADABLE") && (
             <label className="block text-xs font-medium text-slate-700">Document side
               <select value={side} onChange={(event) => setSide(event.target.value as "SI" | "BL")} className={`mt-1 ${control}`}>
@@ -125,10 +127,12 @@ export function ReviewActions({ item, selectedField }: { item: VerificationCase;
             <label className="block text-xs font-medium text-slate-700">Actions already taken<textarea required value={reviewerAction} onChange={(event) => setReviewerAction(event.target.value)} className={`mt-1 min-h-20 py-2 ${control}`} /></label>
             <label className="block text-xs font-medium text-slate-700">Requested supervisor decision<textarea required value={requestedDecision} onChange={(event) => setRequestedDecision(event.target.value)} className={`mt-1 min-h-20 py-2 ${control}`} /></label>
           </>}
-          {(action === "ADD_NOTE" || ["CORRECT", "EQUIVALENT", "UNREADABLE", "ESCALATE"].includes(action)) && <label className="block text-xs font-medium text-slate-700">Note{action !== "ADD_NOTE" && <span className="font-normal text-slate-500"> (optional)</span>}<textarea required={action === "ADD_NOTE"} value={note} onChange={(event) => setNote(event.target.value)} className={`mt-1 min-h-20 py-2 ${control}`} /></label>}
+          {action === "REQUEST_INFORMATION" && <label className="block text-xs font-medium text-slate-700">Information or clarification required<textarea required value={requestReason} onChange={(event) => setRequestReason(event.target.value)} className={`mt-1 min-h-20 py-2 ${control}`} /></label>}
+          {(action === "ADD_NOTE" || ["CORRECT", "EQUIVALENT", "UNREADABLE", "ESCALATE", "REQUEST_INFORMATION"].includes(action)) && <label className="block text-xs font-medium text-slate-700">Note{action !== "ADD_NOTE" && <span className="font-normal text-slate-500"> (optional)</span>}<textarea required={action === "ADD_NOTE"} value={note} onChange={(event) => setNote(event.target.value)} className={`mt-1 min-h-20 py-2 ${control}`} /></label>}
           {action === "RETRY" && <p className="text-xs leading-5 text-slate-600">Retry processing this case? The backend immediately reruns processing and stores the outcome as a separate retry attempt. The original automated result remains unchanged.</p>}
           {action === "EQUIVALENT" && <p className="text-xs leading-5 text-slate-600">The backend records the selected mismatch as equivalent for this case. The automated field result remains unchanged.</p>}
-          {action === "ESCALATE" && <p className="text-xs leading-5 text-slate-600">Submitting creates the escalation and immediately attempts delivery to the configured supervisor email.</p>}
+          {action === "ESCALATE" && <p className="text-xs leading-5 text-slate-600">Submitting records the escalation and adds it to Supervisor Escalations. It does not send an email immediately.</p>}
+          {action === "REQUEST_INFORMATION" && <p className="text-xs leading-5 text-slate-600">Submitting records the request and adds it to Sender Follow-Up. It does not send an email immediately.</p>}
           {feedback && <p role={feedback.tone === "error" ? "alert" : "status"} className={`text-sm ${feedback.tone === "error" ? "text-red-800" : "text-green-800"}`}>{feedback.message}</p>}
           <div className="flex items-center gap-3">
             <button type="submit" disabled={submitting} className="min-h-10 rounded bg-slate-900 px-4 text-sm font-medium text-white outline-none hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">{submitting ? "Saving..." : action === "RETRY" ? "Run Retry" : reviewActionLabels[action]}</button>
