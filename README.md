@@ -105,7 +105,10 @@ limit persists after the bounded retries.
 
 ## Run locally
 
-First start the competition data service on port 8080 from its separate local directory:
+The selected-case evaluator above reads the local bundle directly and does not
+need Docker. To run the backend API against an HTTP Inbox, start the competition
+data service on port 8080 from its separate Docker directory, or use a server
+URL supplied by the organizers:
 
 ```powershell
 docker compose up --build -d
