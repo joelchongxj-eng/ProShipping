@@ -25,9 +25,10 @@ import {
 } from "./human-review-api-validation";
 import {
   backendErrorDetail,
-  compareUploadPath,
-  uploadAttachmentPath,
+  compareUploadProxyPath,
+  uploadAttachmentProxyPath,
   uploadComparisonPath,
+  uploadHttpFallback,
 } from "./upload-api-contract";
 import { caseAttachmentProxyPath } from "./source-document";
 
@@ -52,24 +53,44 @@ async function getErrorDetail(response: Response): Promise<string | null> {
   }
 }
 
-async function request(path: string, init?: RequestInit, timeoutMs = 15000): Promise<unknown> {
-  let baseUrl: string;
-  try { baseUrl = getBackendUrl(); } catch {
-    throw new ApiError("Backend configuration is missing or invalid. Set NEXT_PUBLIC_BACKEND_URL.", "configuration");
+async function request(
+  path: string,
+  init?: RequestInit,
+  timeoutMs = 15000,
+  sameOrigin = false,
+  httpFallback?: (status: number) => string,
+): Promise<unknown> {
+  let requestUrl = path;
+  if (!sameOrigin) {
+    let baseUrl: string;
+    try { baseUrl = getBackendUrl(); } catch {
+      throw new ApiError("Backend configuration is missing or invalid. Set NEXT_PUBLIC_BACKEND_URL.", "configuration");
+    }
+    requestUrl = `${baseUrl}${path}`;
   }
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}${path}`, {
+    response = await fetch(requestUrl, {
       ...init,
       cache: "no-store",
       signal: AbortSignal.timeout(timeoutMs),
     });
-  } catch {
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      const diagnosticUrl = requestUrl.startsWith("/") && typeof window !== "undefined"
+        ? new URL(requestUrl, window.location.origin).toString()
+        : requestUrl;
+      console.error("API request failed before an HTTP response was received.", {
+        url: diagnosticUrl,
+        error,
+      });
+    }
     throw new ApiError("Backend unavailable. Check that the backend is running and try again.", "unavailable");
   }
   if (!response.ok) {
     const detail = await getErrorDetail(response);
-    throw new ApiError(detail ?? `Backend request failed (HTTP ${response.status}).`, "http", response.status);
+    const fallback = httpFallback?.(response.status) ?? `Backend request failed (HTTP ${response.status}).`;
+    throw new ApiError(detail ?? fallback, "http", response.status);
   }
   try { return await response.json(); } catch {
     throw new ApiError("The backend returned invalid JSON.", "invalid");
@@ -137,10 +158,10 @@ export async function createCaseReview(emailId: string, payload: CreateHumanRevi
 }
 
 export async function compareUploadedDocuments(siFile: File, blFile: File): Promise<UploadComparisonResponse> {
-  const data = await request(compareUploadPath, {
+  const data = await request(compareUploadProxyPath, {
     method: "POST",
     body: createUploadFormData(siFile, blFile),
-  }, 120000);
+  }, 120000, true, uploadHttpFallback);
   if (!isUploadComparisonResponse(data)) {
     throw new ApiError("The backend returned an invalid upload comparison response.", "invalid");
   }
@@ -156,7 +177,7 @@ export async function getUploadComparison(comparisonId: string): Promise<UploadC
 }
 
 export function getUploadAttachmentUrl(comparisonId: string, role: "si" | "bl"): string {
-  return `${getBackendUrl()}${uploadAttachmentPath(comparisonId, role)}`;
+  return uploadAttachmentProxyPath(comparisonId, role);
 }
 
 interface ReviewQueueQuery {
