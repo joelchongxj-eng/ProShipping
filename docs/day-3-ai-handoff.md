@@ -1,0 +1,9 @@
+# Day 3 AI handoff
+
+The `data` branch exposes optional AI processing through the existing backend API. Set `AI_ENABLED=1` and `GROQ_API_KEY` in the backend process environment; `backend/.env` is ignored by Git but is not loaded automatically. The README includes a PowerShell command that loads the key without printing it. The current text model is `openai/gpt-oss-20b`; scanned PDFs use `qwen/qwen3.8-27b` for OCR.
+
+The AI extractor returns document type plus raw, source-evidenced values for exactly seven fields: `shipper`, `consignee`, `notify_party`, `port_of_loading`, `port_of_discharge`, `container_count`, and `gross_weight_kg`. Python validates evidence and handles normalization, comparison, case status, and submission mapping. Unknown or placeholder values retain evidence and are marked for review. Damaged PDFs and wrong document types also go to review. A persistent provider failure becomes `FAILED`.
+
+An API-level live smoke check used the local bundle as the inbox and called `POST /api/process-all` followed by `GET /api/submission`. Both endpoints returned HTTP 200. `email_001` processed as `MATCH` and exported `OK`; `email_091` processed as `MISMATCH` and exported `MISMATCH` with only `container_count` in `defect_fields`. This checks the AI-to-backend-to-submission path for two selected cases, not the Docker Inbox connection or full 520-email accuracy. Docker was unavailable on the test machine's command line, and nothing was listening on local port 8080, so a live Docker Inbox check remains open.
+
+The `data` branch has not been merged into `integration`. Integration can review its backend changes and run the same API flow against the Docker Inbox. Groq token limits still apply to large batches and separate service instances; scanned OCR and field extraction may require human review. The selected Day 2 cases and observed outcomes are recorded in `day-2-ai-evaluation.md`.

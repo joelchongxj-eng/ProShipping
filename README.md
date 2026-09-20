@@ -36,6 +36,18 @@ complete labeled Office fields are extracted locally, while other documents
 may require Groq calls. Processing the full dataset still consumes requests
 and tokens. Groq returns HTTP 429 when a rate limit is reached; check your account's
 current limits before running the full inbox.
+If the key is already stored in `backend/.env`, load it into the current
+PowerShell session before starting the backend (the application does not read
+`.env` automatically):
+
+```powershell
+cd backend
+$env:GROQ_API_KEY = ((Get-Content .env | Where-Object { $_ -match '^GROQ_API_KEY=' } | Select-Object -First 1) -replace '^GROQ_API_KEY=', '').Trim()
+$env:AI_ENABLED = "1"
+& .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8001
+```
+
+The command does not print the key. `backend/.env` is ignored by Git.
 Groq is asked for a strict JSON schema; if it rejects JSON generation, the request
 is retried once without a response format. The AI response is validated against the
 backend field schema, and each cited text excerpt is checked against the source.
