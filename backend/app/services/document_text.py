@@ -4,11 +4,13 @@ from io import BytesIO
 from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
 
+import pymupdf
 from PIL import Image
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
 from app.services.ai_service import AIResponseError, AIService
+from app.services.document_reader import DocumentContent, DocumentPage
 
 
 class DocumentReadError(ValueError):
@@ -17,6 +19,8 @@ class DocumentReadError(ValueError):
 
 WORD = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 SHEET = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+PDF_RENDER_DPI = 144
+PDF_RENDER_SCALE = PDF_RENDER_DPI / 72
 
 
 def _paragraph_text(paragraph: ElementTree.Element) -> str:
@@ -96,25 +100,49 @@ def _focus_scan_image(image_data: bytes) -> bytes:
     return output.getvalue()
 
 
+async def rendered_pdf_document_with_vision(
+    content: bytes,
+    path: str,
+    service: AIService,
+) -> DocumentContent:
+    if not path.casefold().endswith(".pdf"):
+        raise DocumentReadError("Vision rendering is supported only for PDF attachments")
+    try:
+        document = pymupdf.open(stream=content, filetype="pdf")
+    except (pymupdf.FileDataError, pymupdf.EmptyFileError, OSError, ValueError) as exc:
+        raise DocumentReadError("Scanned PDF could not be opened") from exc
+
+    pages: list[DocumentPage] = []
+    try:
+        for page_number, page in enumerate(document, start=1):
+            try:
+                pixmap = page.get_pixmap(
+                    matrix=pymupdf.Matrix(PDF_RENDER_SCALE, PDF_RENDER_SCALE),
+                    alpha=False,
+                )
+                image = pixmap.tobytes("png")
+                transcript = await service.transcribe_image(image, "image/png")
+            except AIResponseError as exc:
+                raise DocumentReadError("Scanned PDF could not be transcribed") from exc
+            pages.append(DocumentPage(number=page_number, text=transcript))
+    except (RuntimeError, ValueError, MemoryError) as exc:
+        raise DocumentReadError("Scanned PDF page could not be rendered") from exc
+    finally:
+        document.close()
+
+    if not pages:
+        raise DocumentReadError("Scanned PDF has no pages")
+    page_tuple = tuple(pages)
+    return DocumentContent(
+        text="\n".join(page.text for page in page_tuple),
+        pages=page_tuple,
+    )
+
+
 async def attachment_text_with_vision(content: bytes, path: str, service: AIService) -> str:
     try:
         return attachment_text(content, path)
     except PdfReadError as exc:
         if not path.casefold().endswith(".pdf") or "no extractable text" not in str(exc):
             raise
-    pages = PdfReader(BytesIO(content)).pages
-    lines = []
-    for page in pages:
-        if len(page.images) != 1:
-            raise DocumentReadError("Scanned PDF page has no image or multiple images")
-        try:
-            image = page.images[0]
-        except (ImportError, ValueError) as exc:
-            raise DocumentReadError("Scanned PDF image could not be read") from exc
-        try:
-            lines.append(await service.transcribe_image(_focus_scan_image(image.data), "image/png"))
-        except AIResponseError as exc:
-            raise DocumentReadError("Scanned PDF could not be transcribed") from exc
-    if not lines:
-        raise DocumentReadError("Scanned PDF has no pages")
-    return "\n".join(lines)
+    return (await rendered_pdf_document_with_vision(content, path, service)).text

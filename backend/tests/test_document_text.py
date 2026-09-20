@@ -1,12 +1,43 @@
 from io import BytesIO
 from zipfile import ZipFile
 
+import pymupdf
 import pytest
 from PIL import Image, ImageDraw
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject, NumberObject
 
+from app.services.ai_service import AIResponseError
 from app.services.document_text import _focus_scan_image, attachment_text, attachment_text_with_vision
+
+
+def png_image(color: str, size: tuple[int, int] = (40, 40)) -> bytes:
+    image = Image.new("RGB", size, color)
+    output = BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
+def rendered_scan_pdf(
+    *,
+    pages: int = 1,
+    images_per_page: int = 1,
+    rotation: int = 0,
+) -> bytes:
+    document = pymupdf.open()
+    for page_index in range(pages):
+        page = document.new_page(width=100, height=200)
+        for image_index in range(images_per_page):
+            top = 10 + image_index * 60
+            page.insert_image(
+                pymupdf.Rect(10, top, 90, top + 40),
+                stream=png_image("black" if (page_index + image_index) % 2 else "navy"),
+            )
+        if rotation:
+            page.set_rotation(rotation)
+    content = document.tobytes()
+    document.close()
+    return content
 
 
 def office_file(member: str, xml: str) -> bytes:
@@ -57,13 +88,77 @@ async def test_scanned_pdf_uses_vision_transcription():
 
 
 @pytest.mark.asyncio
+async def test_scanned_pdf_with_multiple_embedded_images_renders_one_full_page():
+    rendered_images = []
+
+    class FakeVision:
+        async def transcribe_image(self, image: bytes, mime_type: str) -> str:
+            rendered_images.append(Image.open(BytesIO(image)).size)
+            return "SHIPPING INSTRUCTION\nContainer Count: 2"
+
+    text = await attachment_text_with_vision(
+        rendered_scan_pdf(images_per_page=2),
+        "case_SI.pdf",
+        FakeVision(),
+    )
+
+    assert text == "SHIPPING INSTRUCTION\nContainer Count: 2"
+    assert rendered_images == [(200, 400)]
+
+
+@pytest.mark.asyncio
+async def test_multi_page_scanned_pdf_transcribes_every_page_in_order():
+    calls = []
+
+    class FakeVision:
+        async def transcribe_image(self, image: bytes, mime_type: str) -> str:
+            calls.append(Image.open(BytesIO(image)).size)
+            return f"PAGE {len(calls)}"
+
+    text = await attachment_text_with_vision(
+        rendered_scan_pdf(pages=3),
+        "case_SI.pdf",
+        FakeVision(),
+    )
+
+    assert text == "PAGE 1\nPAGE 2\nPAGE 3"
+    assert calls == [(200, 400), (200, 400), (200, 400)]
+
+
+@pytest.mark.asyncio
+async def test_rotated_scanned_pdf_render_respects_page_rotation_metadata():
+    rendered_sizes = []
+
+    class FakeVision:
+        async def transcribe_image(self, image: bytes, mime_type: str) -> str:
+            rendered_sizes.append(Image.open(BytesIO(image)).size)
+            return "SHIPPING INSTRUCTION"
+
+    await attachment_text_with_vision(
+        rendered_scan_pdf(rotation=90),
+        "case_SI.pdf",
+        FakeVision(),
+    )
+
+    assert rendered_sizes == [(400, 200)]
+
+
+@pytest.mark.asyncio
 async def test_blank_pdf_without_image_still_needs_review():
+    class UnreadableVision:
+        async def transcribe_image(self, image: bytes, mime_type: str) -> str:
+            raise AIResponseError("Scanned document is unreadable")
+
     writer = PdfWriter()
     writer.add_blank_page(width=100, height=100)
     output = BytesIO()
     writer.write(output)
-    with pytest.raises(ValueError, match="no extractable text|no image"):
-        await attachment_text_with_vision(output.getvalue(), "case_SI.pdf", object())
+    with pytest.raises(ValueError, match="could not be"):
+        await attachment_text_with_vision(
+            output.getvalue(),
+            "case_SI.pdf",
+            UnreadableVision(),
+        )
 
 
 def test_scan_image_focuses_on_dark_document_content():

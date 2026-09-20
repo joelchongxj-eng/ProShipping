@@ -25,12 +25,13 @@ from app.services.ai_service import AIResponseError, GroqRequestError
 from app.services.comparison import compare_documents
 from app.services.document_reader import (
     DocumentContent,
+    DocumentPage,
     DocumentReadError,
     read_document,
 )
 from app.services.document_text import (
     DocumentReadError as VisionDocumentReadError,
-    attachment_text_with_vision,
+    rendered_pdf_document_with_vision,
 )
 from app.services.text_extractor import extract_shipping_fields
 from app.services.semantic_equivalence import SEMANTIC_TEXT_FIELDS
@@ -44,6 +45,14 @@ WRONG_DOCUMENT_TITLES = {
 WRONG_DOCUMENT_DISCLAIMERS = (
     "not an si or bl",
     "packing list only",
+)
+
+EXPECTED_AI_FAILURES = (
+    AIResponseError,
+    GroqRequestError,
+    VisionDocumentReadError,
+    httpx.HTTPError,
+    TimeoutError,
 )
 
 
@@ -171,9 +180,14 @@ def _has_missing_fields(fields: ShippingFields) -> bool:
     return any(value is None for _, value in fields)
 
 
+def _has_extracted_fields(fields: ShippingFields) -> bool:
+    return any(value is not None for _, value in fields)
+
+
 def _with_ai_source(
     fields: ShippingFields,
     filename: str,
+    pages: tuple[DocumentPage, ...] = (),
 ) -> ShippingFields:
     sourced: dict[str, ExtractedField | None] = {}
     for name, field in fields:
@@ -184,13 +198,25 @@ def _with_ai_source(
             update={
                 "source": SourceLocation(
                     filename=filename,
-                    page=None,
+                    page=_page_for_evidence(field.evidence, pages),
                     evidence_text=field.evidence,
                     locator=None,
                 )
             }
         )
     return ShippingFields(**sourced)
+
+
+def _page_for_evidence(
+    evidence: str,
+    pages: tuple[DocumentPage, ...],
+) -> int | None:
+    matching_pages = {
+        page.number
+        for page in pages
+        if evidence in page.text
+    }
+    return matching_pages.pop() if len(matching_pages) == 1 else None
 
 
 def _merge_missing_fields(
@@ -205,18 +231,53 @@ def _merge_missing_fields(
     )
 
 
-async def _read_with_pdf_fallback(
+async def _extract_document_with_ai(
     filename: str,
     content: bytes,
+    expected_type: DocumentType,
     ai_service: AIDocumentService,
-) -> tuple[DocumentContent, bool]:
+) -> tuple[ShippingFields, bool]:
     try:
-        return read_document(filename, content), False
+        document = read_document(filename, content)
     except DocumentReadError:
         if PurePosixPath(filename).suffix.casefold() != ".pdf":
             raise
-    transcript = await attachment_text_with_vision(content, filename, ai_service)
-    return DocumentContent(text=transcript), True
+        fields = ShippingFields()
+    else:
+        if is_wrong_document_type(document.text):
+            return ShippingFields(), True
+        fields = _extract_fields(filename, document)
+        if (
+            PurePosixPath(filename).suffix.casefold() != ".pdf"
+            or not _has_missing_fields(fields)
+        ):
+            return fields, False
+
+    try:
+        vision_document = await rendered_pdf_document_with_vision(
+            content,
+            filename,
+            ai_service,
+        )
+        if is_wrong_document_type(vision_document.text):
+            return fields, True
+        vision_fields = _extract_fields(filename, vision_document)
+        fields = _merge_missing_fields(fields, vision_fields)
+        if _has_missing_fields(fields):
+            fields, wrong_type = await _complete_scanned_fields(
+                filename,
+                vision_document,
+                fields,
+                expected_type,
+                ai_service,
+            )
+            if wrong_type:
+                return fields, True
+    except EXPECTED_AI_FAILURES:
+        if _has_extracted_fields(fields):
+            return fields, False
+        raise
+    return fields, False
 
 
 async def _complete_scanned_fields(
@@ -231,7 +292,7 @@ async def _complete_scanned_fields(
     extracted = await ai_service.extract_text(document.text, filename)
     if extracted.document_type is not expected_type:
         return fields, True
-    ai_fields = _with_ai_source(extracted.fields, filename)
+    ai_fields = _with_ai_source(extracted.fields, filename, document.pages)
     return _merge_missing_fields(fields, ai_fields), False
 
 
@@ -276,43 +337,22 @@ async def compare_document_pair_with_ai_fallback(
         )
 
     try:
-        si_document, si_used_ai = await _read_with_pdf_fallback(
+        si_fields, wrong_type = await _extract_document_with_ai(
             si_filename,
             si_content,
+            DocumentType.SI,
             ai_service,
         )
-        bl_document, bl_used_ai = await _read_with_pdf_fallback(
+        if wrong_type:
+            return _wrong_document_result()
+        bl_fields, wrong_type = await _extract_document_with_ai(
             bl_filename,
             bl_content,
+            DocumentType.BL,
             ai_service,
         )
-        if is_wrong_document_type(si_document.text) or is_wrong_document_type(
-            bl_document.text
-        ):
+        if wrong_type:
             return _wrong_document_result()
-
-        si_fields = _extract_fields(si_filename, si_document)
-        bl_fields = _extract_fields(bl_filename, bl_document)
-        if si_used_ai:
-            si_fields, wrong_type = await _complete_scanned_fields(
-                si_filename,
-                si_document,
-                si_fields,
-                DocumentType.SI,
-                ai_service,
-            )
-            if wrong_type:
-                return _wrong_document_result()
-        if bl_used_ai:
-            bl_fields, wrong_type = await _complete_scanned_fields(
-                bl_filename,
-                bl_document,
-                bl_fields,
-                DocumentType.BL,
-                ai_service,
-            )
-            if wrong_type:
-                return _wrong_document_result()
     except (
         AIResponseError,
         DocumentReadError,
