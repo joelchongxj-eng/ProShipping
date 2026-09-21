@@ -1055,7 +1055,7 @@ Both processing methods ultimately use the same comparison logic and generate fi
 
 ---
 
-## Challenges Faced
+## ⚠️ Challenges Faced
 
 ### 1. Establishing a Reliable Verification Baseline
 
@@ -1205,7 +1205,7 @@ Current limitations include:
 
 ---
 
-## Limitations
+## 🚧 Limitations
 
 Although ProShipping successfully demonstrates the main SI–BL verification workflow, the current prototype still has several limitations.
 
