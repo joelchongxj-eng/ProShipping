@@ -109,6 +109,51 @@ It also identifies additional manpower and coordination work as part of the oper
 
 ---
 
+### 🌍 Who Is Affected?
+
+The impact of shipping-document errors does not stop with the documentation team.
+
+**Exporters and shippers** may face amendment charges, additional administrative work, and delays in cargo processing, while **importers and consignees** may experience delayed cargo availability and downstream delivery disruption.
+
+**Freight forwarders, shipping operations teams, carriers, customs-related parties, and port operators** may also need to spend additional time coordinating corrections, validating updated information, and rescheduling affected activities.
+
+These effects can continue further down the supply chain. Businesses waiting for inventory may receive goods later, while end customers may ultimately experience delayed product availability or deliveries.
+
+The ripple effect can be illustrated as:
+
+```text
+Shipping Document Error
+          │
+          ▼
+BL Amendment / Correction
+          │
+          ├──────────────► Additional Cost
+          │
+          ├──────────────► Extra Rework
+          │
+          └──────────────► Processing / Customs Delay
+                                   │
+                                   ▼
+                     Logistics & Shipping Operations
+                                   │
+                                   ▼
+                        Importers / Consignees
+                                   │
+                                   ▼
+                     Businesses Waiting for Goods
+                                   │
+                                   ▼
+                        End Customers / Consumers
+```
+
+> **A documentation error that begins as a small discrepancy can therefore create operational consequences across multiple stakeholders before eventually becoming visible as a delayed shipment or product delivery.**
+
+Because shipment information moves across multiple organizations, an error introduced or overlooked at one stage can create consequences well beyond the original document.
+
+This makes early and accurate verification especially important before the draft Bill of Lading progresses further through the shipping process.
+
+---
+
 ### 🔍 The Verification Challenge
 
 The challenge is therefore to detect discrepancies **before incorrect information progresses beyond the draft Bill of Lading stage**.
