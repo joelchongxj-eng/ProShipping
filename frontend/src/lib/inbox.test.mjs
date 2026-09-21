@@ -26,12 +26,13 @@ test("maps backend cases without inventing received dates or classification conf
   assert.equal("classification_confidence_mock" in row, false);
 });
 
-test("category filtering remains independent of removed mock filters", () => {
+test("Inbox keeps every email category visible when showing all", () => {
   const rows = mapBackendCasesToInboxRows([
     makeCase("email_001", "BL_COMPARISON"),
     makeCase("email_002", "GENERAL"),
+    makeCase("email_003", "INVOICE_QUERY"),
   ]);
-  assert.deepEqual(filterEmails(rows, { category: "all" }).map((row) => row.email_id), ["email_001", "email_002"]);
+  assert.deepEqual(filterEmails(rows, { category: "all" }).map((row) => row.email_id), ["email_001", "email_002", "email_003"]);
   assert.deepEqual(filterEmails(rows, { category: "GENERAL" }).map((row) => row.email_id), ["email_002"]);
 });
 

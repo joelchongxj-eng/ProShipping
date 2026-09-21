@@ -30,7 +30,7 @@ test("uses four authoritative top-level case statuses", () => {
   assert.equal(groups.failed.length, 1);
 });
 
-test("keeps every backend CaseRecord visible regardless of email category", () => {
+test("Dashboard counts and groups only BL comparison cases", () => {
   const allCases = [
     makeCase({ emailId: "comparison", status: "MISMATCH" }),
     makeCase({ emailId: "invoice", status: "MATCH", category: "INVOICE_QUERY" }),
@@ -39,8 +39,19 @@ test("keeps every backend CaseRecord visible regardless of email category", () =
 
   const groups = groupCases(allCases);
 
-  assert.deepEqual(groups.matched.map((item) => item.email.email_id), ["invoice", "general"]);
-  assert.equal(filterCases(allCases, { group: "all" }).length, 3);
+  assert.equal(Object.values(groups).flat().length, 1);
+  assert.deepEqual(groups.matched, []);
+  assert.deepEqual(groups.mismatch.map((item) => item.email.email_id), ["comparison"]);
+});
+
+test("Cases filters exclude non-BL-comparison records", () => {
+  const allCases = [
+    makeCase({ emailId: "comparison", status: "MATCH" }),
+    makeCase({ emailId: "invoice", status: "MATCH", category: "INVOICE_QUERY" }),
+  ];
+
+  assert.deepEqual(filterCases(allCases, { group: "all" }).map((item) => item.email.email_id), ["comparison"]);
+  assert.deepEqual(filterCases(allCases, { group: "matched" }).map((item) => item.email.email_id), ["comparison"]);
 });
 
 test("counts only backend-supplied review reasons", () => {

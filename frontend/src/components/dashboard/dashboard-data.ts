@@ -26,12 +26,17 @@ export function getFieldCounts(item: VerificationCase) {
   };
 }
 
+function comparisonCases(cases: VerificationCase[]): VerificationCase[] {
+  return cases.filter((item) => item.category === "BL_COMPARISON");
+}
+
 export function groupCases(cases: VerificationCase[]): Record<BoardGroup, VerificationCase[]> {
+  const comparisons = comparisonCases(cases);
   return {
-    matched: cases.filter((item) => item.status === "MATCH"),
-    mismatch: cases.filter((item) => item.status === "MISMATCH"),
-    needs_review: cases.filter((item) => item.status === "NEEDS_REVIEW"),
-    failed: cases.filter((item) => item.status === "FAILED"),
+    matched: comparisons.filter((item) => item.status === "MATCH"),
+    mismatch: comparisons.filter((item) => item.status === "MISMATCH"),
+    needs_review: comparisons.filter((item) => item.status === "NEEDS_REVIEW"),
+    failed: comparisons.filter((item) => item.status === "FAILED"),
   };
 }
 
@@ -82,6 +87,6 @@ export function resolveCaseFilter(params: Record<string, string | string[] | und
 }
 
 export function filterCases(cases: VerificationCase[], filter: CaseFilter): VerificationCase[] {
-  const grouped = filter.group === "all" ? cases : groupCases(cases)[filter.group];
+  const grouped = filter.group === "all" ? comparisonCases(cases) : groupCases(cases)[filter.group];
   return filter.reviewReason ? grouped.filter((item) => item.review_reason === filter.reviewReason) : grouped;
 }
