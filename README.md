@@ -695,3 +695,48 @@ These libraries allow ProShipping to process shipping documents in formats inclu
 
 ---
 
+## 🏗 System Architecture
+
+ProShipping follows a client-server architecture consisting of a **Next.js frontend**, a **FastAPI backend**, an external **Inbox service**, and optional external AI and email-delivery services.
+
+```text
+                    ┌─────────────────────┐
+                    │    Next.js Client   │
+                    │   User Interface    │
+                    └──────────┬──────────┘
+                               │
+                         REST API / HTTP
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │   FastAPI Backend   │
+                    │                     │
+                    │ • Email Processing  │
+                    │ • Document Parsing  │
+                    │ • Normalization     │
+                    │ • Comparison        │
+                    │ • Human Review      │
+                    │ • Submission Export │
+                    └──────┬───────┬──────┘
+                           │       │
+              ┌────────────┘       └─────────────┐
+              ▼                                  ▼
+    ┌──────────────────┐                ┌─────────────────┐
+    │ External Inbox   │                │    Groq API     │
+    │ Service          │                │   (Optional)    │
+    │                  │                │                 │
+    │ Emails +         │                │ Classification  │
+    │ Attachments      │                │ Extraction      │
+    └──────────────────┘                │ Vision/OCR      │
+                                        │ Semantic Check  │
+                                        └─────────────────┘
+```
+
+The frontend communicates with the backend through REST API endpoints. The backend is responsible for retrieving inbox data, accepting manually uploaded document pairs, extracting shipping information, normalizing values, comparing the Shipping Instruction against the draft Bill of Lading, and determining the final verification status.
+
+For inbox-based processing, the backend connects to an external Inbox service to retrieve emails and their attachments. AI processing can optionally be enabled through Groq to support more complex document extraction, scanned documents, email classification, and semantic equivalence checking.
+
+Processed cases, uploaded comparison sessions, human-review records, retry records, escalation records, and submission workflow data are currently managed by backend services during application execution.
+
+---
+
