@@ -1,4 +1,10 @@
 # ProShipping
+
+## 🔗 Project Links
+
+- 🌐 **Prototype Demo:** [https://pro-shipping.vercel.app/](https://pro-shipping.vercel.app/)
+- 🎥 **Video Slides:** [View Presentation Slides](https://canva.link/9vzj2ivb1de1lqt)
+
 ## 🚢 Problem Statement
 
 ### The Current State of Shipping Documentation
