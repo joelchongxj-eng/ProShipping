@@ -31,6 +31,7 @@ import {
 } from "./upload-api-contract";
 import { caseAttachmentProxyPath } from "./source-document";
 import { isSubmissionDispatch, isSubmissionWorkflowResponse } from "./submission-api-validation";
+import { isProcessInboxResponse, processInboxProxyPath, type ProcessInboxResponse } from "./process-inbox";
 import {
   submissionProxyActionPath,
   submissionProxyRemovePath,
@@ -160,6 +161,14 @@ export async function createCaseReview(emailId: string, payload: CreateHumanRevi
   }, 120000, true);
   if (!isHumanReviewRecord(data) || data.target_type !== "COMPETITION_CASE" || data.target_id !== emailId) {
     throw new ApiError("The backend returned an invalid Human Review record.", "invalid");
+  }
+  return data;
+}
+
+export async function processAllCases(): Promise<ProcessInboxResponse> {
+  const data = await request(processInboxProxyPath, { method: "POST" }, 600000, true);
+  if (!isProcessInboxResponse(data)) {
+    throw new ApiError("The backend returned an invalid inbox processing response.", "invalid");
   }
   return data;
 }
