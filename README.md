@@ -282,6 +282,327 @@ ProShipping therefore functions as more than a document-comparison tool. It prov
 
 By combining automation with evidence and human oversight, ProShipping is designed to reduce repetitive manual work while preserving the judgement required for uncertain cases.
 
+---
+
+## ✨ Key Features
+
+### 📥 1. Intelligent Inbox Processing
+
+ProShipping begins where the operational workflow begins: the inbox.
+
+Incoming emails are automatically classified into:
+
+- **BL Comparison**
+- **SI Request**
+- **Invoice Query**
+- **General**
+- **Spam**
+
+Users can:
+
+- Filter emails by category.
+- Inspect the sender, subject, message body, attachments, and classification.
+- Open BL comparison requests directly as verification cases.
+
+This reduces the manual effort required to identify document-checking requests among unrelated operational emails.
+
+---
+
+### 📊 2. Operational Dashboard
+
+The Dashboard provides a centralized overview of verification cases and separates them into:
+
+- **Matched**
+- **Mismatch**
+- **Needs Review**
+
+Each case preview shows important information such as:
+
+- Case ID
+- Subject
+- Sender
+- Verification status
+- Reported field issues
+
+Cases requiring attention can also be grouped by their **review reason**, helping users identify missing, unreadable, or uncertain information more quickly.
+
+Users can also begin a manual SI and draft BL verification directly from the Dashboard.
+
+---
+
+### 🔍 3. Seven-Field SI–BL Verification
+
+ProShipping compares the Shipping Instruction and draft Bill of Lading across seven critical shipment fields:
+
+1. **Shipper**
+2. **Consignee**
+3. **Notify Party**
+4. **Port of Loading**
+5. **Port of Discharge**
+6. **Container Count**
+7. **Gross Weight**
+
+Each field clearly displays whether it is:
+
+- **Matched**
+- **Mismatched**
+- **Missing**
+- **Requires Review**
+
+The SI and draft BL values are displayed side by side to make discrepancies easy to identify.
+
+---
+
+### 🔄 4. Raw Values, Normalization & Comparison Explanations
+
+Document verification is not always a direct text comparison.
+
+The same shipment information may be written differently across documents. For example:
+
+```text
+Port of Loading
+Load Port
+```
+
+These may refer to the same field despite the different wording.
+
+ProShipping therefore preserves both the **original extracted value** and its **normalized form**.
+
+Users can also see:
+
+- The comparison method used.
+- The reason for the field result.
+- Explanations for values accepted as equivalent.
+
+This makes it easier to distinguish genuine discrepancies from harmless differences in wording or formatting.
+
+---
+
+### 🎯 5. Extraction Confidence
+
+Each extracted value can display its available **extraction confidence**.
+
+Confidence represents how certain the system is that a value was correctly read from the source document. It does **not** indicate whether the SI and draft BL match.
+
+This allows users to distinguish between:
+
+```text
+High-confidence Match
+```
+
+and:
+
+```text
+Low-confidence Match
+```
+
+where the values appear identical but one extraction may still require human inspection.
+
+---
+
+### 📄 6. Evidence-Backed Source Comparison
+
+Users can inspect the evidence behind a comparison through the dedicated **Source Comparison** view.
+
+Selecting a field shows the corresponding SI and draft BL evidence side by side.
+
+Depending on document type, ProShipping can provide:
+
+- Highlighted text evidence
+- Surrounding document context
+- PDF page navigation
+- Highlighted PDF evidence regions
+- Word paragraph or table references
+- Spreadsheet sheet or cell references
+- Original attachment access
+
+Different document formats can also be viewed together, such as a text Shipping Instruction alongside a PDF draft BL.
+
+When exact highlighting cannot be determined reliably, ProShipping displays the available source evidence and reference instead of inventing a location.
+
+> **The goal is not simply to produce a result, but to make that result verifiable.**
+
+---
+
+### 👤 7. Human Review
+
+Cases requiring judgement are routed into a dedicated **Human Review workflow**.
+
+Reviewers can:
+
+- Confirm eligible automated results.
+- Correct incorrectly extracted SI or BL values.
+- Accept differently written values as equivalent.
+- Mark information as unreadable.
+- Add review notes.
+- Retry processing.
+- Escalate unresolved issues to a supervisor.
+- Request additional information from the sender.
+
+ProShipping preserves the distinction between:
+
+```text
+Automated Value
+      ↓
+Reviewed Value
+      ↓
+Effective Value
+```
+
+This allows human corrections without removing the original automated result.
+
+---
+
+### 🧾 8. Review Audit Trail
+
+Human decisions remain traceable throughout the verification process.
+
+ProShipping records:
+
+- Affected fields
+- Document side
+- Original automated values
+- Corrected values
+- Reviewer decisions
+- Notes
+- Escalation reasons
+- Information requests
+- Retry outcomes
+- Timestamps
+
+Separate histories preserve retry and escalation activity.
+
+This provides a clear record of how a verification result changed after human intervention.
+
+---
+
+### 🔁 9. Failure Handling & Retry
+
+Missing, unreadable, incomplete, and failed results remain clearly visible instead of being incorrectly presented as successful matches.
+
+Eligible cases can be reprocessed, while the new outcome is stored separately from the original automated result.
+
+This allows the workflow to recover from processing failures without losing the history of what occurred previously.
+
+---
+
+### 🚨 10. Supervisor Escalation & Sender Follow-Up
+
+Some discrepancies cannot be resolved through document comparison alone.
+
+ProShipping therefore supports two follow-up workflows.
+
+#### Supervisor Escalation
+
+Reviewers can escalate an unresolved issue together with:
+
+- Affected field
+- SI and BL values
+- Review reason
+- Actions already taken
+- Escalation reason
+- Requested supervisor decision
+
+These cases are placed into a dedicated supervisor queue.
+
+#### Sender Follow-Up
+
+When additional information is required, reviewers can record what clarification is needed from the sender.
+
+These cases are placed into a dedicated sender follow-up queue.
+
+Both workflows support:
+
+- Active queues
+- Sent history
+- Delivery status
+- Failed delivery states
+- Resend actions
+
+This extends ProShipping beyond simply finding discrepancies into helping users resolve them.
+
+---
+
+### 📤 11. Manual Document Verification
+
+ProShipping also supports verification outside the inbox workflow.
+
+Users can upload:
+
+- One **Shipping Instruction**
+- One corresponding **draft Bill of Lading**
+
+Supported formats include:
+
+- **PDF**
+- **TXT**
+- **DOCX**
+- **XLSX**
+
+The uploaded case then uses the same verification workflow, including:
+
+- Seven-field comparison
+- Overall verification status
+- Review reason
+- Confidence information
+- Supporting evidence
+- Original source access
+
+This allows ProShipping to support both inbox-driven processing and ad-hoc document verification.
+
+---
+
+### 📦 12. Competition Results Export
+
+ProShipping can generate the complete competition submission output separately from its operational workflows.
+
+This keeps competition evaluation data independent from:
+
+- Human Review
+- Supervisor escalation
+- Sender follow-up
+
+The exported result can then be used with the challenge's provided self-evaluation mechanism.
+
+---
+
+### ✅ What ProShipping Delivers
+
+Together, these features form a complete verification workflow:
+
+```text
+Identify
+   ↓
+Extract
+   ↓
+Normalize
+   ↓
+Compare
+   ↓
+Explain
+   ↓
+Verify Evidence
+   ↓
+Human Review when needed
+   ↓
+Resolve / Escalate / Retry
+   ↓
+Final Verified Result
+```
+
+ProShipping is built around three core principles:
+
+**⚡ Efficiency**  
+Reduce repetitive email triage and manual field-by-field document checking.
+
+**🔎 Traceability**  
+Show the values, evidence, confidence, comparison reasoning, and review history behind verification results.
+
+**👤 Human Oversight**  
+Automate routine cases while preserving human judgement for missing, uncertain, unreadable, or disputed information.
+
+---
+
 ## Tech Stack
 
 - **Backend:** Python 3.11+, FastAPI, Uvicorn, and Pydantic
