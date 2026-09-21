@@ -1361,110 +1361,6 @@ Current limitations include:
 
 ---
 
-## 🚧 Limitations
-
-Although ProShipping successfully demonstrates the main SI–BL verification workflow, the current prototype still has several limitations.
-
-### 1. In-Memory Data Storage
-
-The current system mainly stores active cases, review records, retry information, escalation records, and submission data in application memory. This means that some workflow data may be lost when the backend server is restarted.
-
-A persistent database would be required for production use to ensure that historical records and workflow states remain available.
-
-### 2. Limited Authentication and Access Control
-
-The current prototype does not include a complete user authentication and authorization system.
-
-In a production environment, features such as secure login, user roles, access permissions, and audit trails would be required, especially for Human Review, escalation, and submission actions.
-
-### 3. AI Accuracy Is Not Fully Evaluated
-
-AI-assisted extraction and semantic comparison are used for selected cases, but their accuracy has not been comprehensively measured across the entire 520-email dataset.
-
-OCR errors, incorrect field extraction, malformed responses, and ambiguous document content may still affect AI-generated results. For this reason, uncertain cases are routed to Human Review instead of being automatically accepted.
-
-### 4. Dependence on External Services
-
-Some ProShipping functions depend on external services, including the Inbox service and Groq API.
-
-If these services are unavailable, rate-limited, or misconfigured, certain functions such as email retrieval, AI extraction, OCR, or semantic comparison may be temporarily unavailable.
-
-### 5. Scanned and Poor-Quality Documents
-
-Image-only PDFs and low-quality scanned documents are more difficult to process than text-based files.
-
-Blurred images, unusual layouts, handwritten information, low resolution, or OCR errors can reduce extraction reliability and may require manual review.
-
-### 6. Limited Document Format Coverage
-
-The current system supports common formats such as TXT, PDF, DOCX, and XLSX.
-
-Other formats or highly customized shipping document layouts may require additional parsing logic before they can be processed reliably.
-
-### 7. Runtime and Performance Constraints
-
-The current prototype is designed for demonstration and testing rather than large-scale production processing.
-
-Processing many documents at the same time, especially when AI or OCR is involved, may increase response time or trigger API rate limits. The current implementation does not yet include full background job processing, queue management, or distributed processing.
-
-### 8. Limited Production Monitoring
-
-The prototype currently has limited production-level monitoring, logging, and alerting.
-
-A production deployment would require centralized logs, performance monitoring, failure alerts, request tracing, and service health monitoring to support reliable operation.
-
-### 9. Manual Review Is Still Required
-
-ProShipping reduces the amount of manual comparison work, but it does not completely remove the need for human verification.
-
-Cases containing unclear values, damaged documents, extraction uncertainty, or conflicting information may still require Human Review before a final decision is made.
-
-### 10. Prototype-Level Deployment
-
-The current system demonstrates the complete workflow but is not yet a fully production-ready platform.
-
-Further work would be required for persistent storage, user authentication, security hardening, scalable deployment, comprehensive testing, monitoring, and broader accuracy evaluation.
-
----
-
-## 🚀 Future Roadmap
-
-### 🌐 Market Direction & Opportunity
-
-The shipping industry is steadily moving toward more digital trade-document workflows.
-
-The **FIT Alliance 2024 eBL Survey** found that the proportion of respondents using electronic Bills of Lading (eBLs) in some capacity increased from **33.0% in 2022 to 49.2% in 2024**. Among respondents still relying only on paper Bills of Lading, **74.7% indicated plans to transition toward eBLs**.
-
-DCSA member carriers have also committed to significantly increasing digital Bill of Lading adoption toward **100% eBL issuance by 2030**.
-
-This transition is relevant to ProShipping because eBL adoption represents more than replacing a paper Bill of Lading with an electronic document. It is part of a broader shift toward **digitally connected shipping-document workflows**, where Shipping Instructions, draft transport documents, approvals, corrections, and final issuance can increasingly move between systems electronically.
-
-The same digital workflow contains the verification point that ProShipping already addresses:
-
-```text
-Shipping Instruction
-        │
-        ▼
-Draft Bill of Lading
-        │
-        ▼
-Verification & Review
-        │
-        ▼
-Approval / Correction
-        │
-        ▼
-Final BL / eBL
-```
-
-Today, ProShipping performs this verification mainly through **emails, attachments, and manual document uploads**.
-
-As the industry becomes more digital and API-driven, ProShipping could eventually connect directly with **carrier systems, freight-forwarding platforms, TMS, ERP, or eBL platforms** and verify Shipping Instruction and draft BL information before the document progresses toward approval.
-
-> **The opportunity is not for ProShipping to become another eBL platform, but to become the verification layer that helps ensure the information entering those digital workflows is correct.**
-
----
-
 ### 🧭 Roadmap Overview
 
 ```text
@@ -1848,3 +1744,84 @@ for Digital Shipping
    *100% eBL by 2030*  
    [View DCSA's 100% eBL by 2030 commitment](https://dcsa.org/get-involved/100-percent-ebl)
 
+---
+
+## 📝 Written Responses
+
+### 🎯 Problem-Solution Alignment
+
+ProShipping was developed to address the inefficiency and risk of manually comparing Shipping Instructions (SI) with draft Bills of Lading (BL). In a manual workflow, users must inspect multiple documents, identify key shipping details, and compare them field by field. This process can be time-consuming and may lead to overlooked discrepancies, especially when document formats and layouts are inconsistent.
+
+The proposed solution automates this verification process by extracting seven important shipping fields from both documents, normalizing the extracted values, and comparing them systematically. The system then classifies each result as `MATCH`, `MISMATCH`, or `NEEDS_REVIEW`. Cases that cannot be verified confidently are routed to Human Review rather than being automatically accepted. This allows ProShipping to improve verification efficiency while still maintaining human oversight for uncertain cases.
+
+### 🤖 AI and Cloud Infrastructure Integration
+
+ProShipping integrates the Groq API as an optional AI processing layer. AI is mainly used to support email classification, document information extraction, scanned or image-only document processing, and semantic comparison of values that cannot be reliably evaluated using deterministic rules alone.
+
+The FastAPI backend sends selected document content or prompts to Groq and validates the returned results before they are used in the verification workflow. AI is treated as a supporting component rather than the sole source of truth. Deterministic extraction and normalization remain important, and uncertain AI-generated results can be routed to Human Review.
+
+The application also connects to an external Inbox service through HTTP APIs to retrieve emails and document attachments. This service-based architecture allows the frontend, backend, inbox service, and AI provider to operate as separate components while communicating through defined APIs.
+
+### 🧪 User Feedback and Testing
+
+The prototype was tested through both backend and frontend integration testing. Testing covered inbox-based document processing, manual SI and BL uploads, field comparison, Human Review, retry actions, escalation workflows, source-document viewing, CSV export, submission data, and browser integration.
+
+A dataset containing approximately 520 email records was used during development to evaluate the overall workflow. Selected cases were also used to test different document formats, including TXT, PDF, DOCX, XLSX, and scanned documents.
+
+Testing identified several issues, including incorrect field extraction, OCR spelling errors, document-type mismatches, malformed AI responses, inconsistent frontend-backend API handling, and source-document path problems. These findings were used to refine the extraction logic, validation rules, frontend integration, and error-handling behaviour.
+
+However, AI accuracy has not yet been comprehensively measured across the entire 520-record dataset, so the current testing should be treated as prototype-level validation rather than a complete production benchmark.
+
+### 💻 Coding Challenges
+
+One of the main coding challenges was handling documents with different formats and layouts. Important fields could appear in tables, multiline addresses, bilingual labels, scanned images, or different sections of a document. Separate extraction methods therefore had to be implemented for PDF, DOCX, XLSX, TXT, and image-based documents.
+
+Another major challenge was maintaining reliable comparison results. The system needed to avoid false matches, fabricated values, and AI results overwriting more reliable deterministic extraction. This required normalization rules, structured validation, evidence tracking, and a `NEEDS_REVIEW` workflow for uncertain cases.
+
+Frontend and backend integration was also challenging because the backend API evolved throughout development. New statuses, review actions, source locators, retry functions, escalation states, and submission workflows required the frontend to continuously remain compatible with the latest API structure.
+
+Additional challenges included Groq rate limits, invalid AI responses, secure email configuration, source-document highlighting, no-content API responses, and ensuring that changes in one part of the system did not cause regressions elsewhere.
+
+### 📊 Success Metrics
+
+The success of the ProShipping prototype can be evaluated using several practical metrics.
+
+First, the system should correctly identify and process valid SI-BL comparison cases from the incoming email dataset. Second, it should successfully extract the seven required shipping fields and provide field-level comparison results.
+
+Another important metric is the system's ability to avoid unsafe automatic decisions. Cases that cannot be confidently verified should be classified as `NEEDS_REVIEW` instead of being incorrectly marked as a match.
+
+Other indicators of success include:
+
+* Successful processing of multiple document formats
+* Correct integration between the frontend and backend
+* Successful manual SI and BL upload comparison
+* Functional Human Review, retry, and escalation workflows
+* Availability of source evidence for verification
+* Successful export and submission workflows
+* Stable browser interaction without critical integration errors
+
+At the current prototype stage, these workflow-based metrics are more appropriate than claiming a fixed AI accuracy percentage because full-dataset accuracy evaluation has not yet been completed.
+
+### 📈 Scalability Plans
+
+The current prototype is suitable for demonstrating the complete document verification and review workflow, but several improvements would be required for larger-scale production use.
+
+The first improvement would be replacing the current in-memory application state with persistent database storage. A production database would allow cases, review records, retries, escalations, and submission histories to remain available across server restarts.
+
+The system could also introduce background job processing and message queues so that large numbers of documents can be processed asynchronously without blocking API requests. This would be particularly useful when AI processing, OCR, or large document files require more processing time.
+
+Additional scalability improvements could include:
+
+* Cloud-based object storage for uploaded documents
+* Database indexing for large case volumes
+* Caching frequently accessed data
+* API rate limiting
+* Load balancing across multiple backend instances
+* Containerized deployment
+* Centralized monitoring and logging
+* User authentication and role-based access control
+* Batch processing for large email volumes
+* More extensive automated testing and regression testing
+* Broader AI accuracy evaluation across the full dataset
+
+These improvements would allow ProShipping to move from a prototype into a more reliable and scalable production system.
