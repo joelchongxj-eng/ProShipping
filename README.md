@@ -206,3 +206,26 @@ Set environment variables before starting the backend. The application does not 
 4. Extract and compare the shipper, consignee, notify party, port of loading, port of discharge, container count, and gross weight.
 5. Assign a `MATCH`, `MISMATCH`, `NEEDS_REVIEW`, or `FAILED` status.
 6. View field-level results through the case API or export results through the submission endpoint.
+
+---
+
+## Limitations
+
+- Processed cases are stored in memory and are lost when the backend restarts.
+- The default processing mode extracts fields from TXT attachments only. PDF, DOCX, XLSX, and scanned PDF processing require the optional AI mode.
+- AI results can be affected by unclear scans, unusual document layouts, and provider rate limits. Full-dataset AI accuracy has not yet been measured.
+- Missing attachments, unreadable documents, uncertain values, and incorrect document types require human review.
+- The current backend does not provide an implemented dashboard, manual upload flow, or interface for correcting extracted values.
+- The API depends on an external Inbox service to process emails.
+
+---
+
+## Future Improvements
+
+- Build the dashboard and inbox interface so users can inspect cases, comparisons, and source evidence.
+- Add a human review workflow for correcting extracted values and rerunning comparisons.
+- Support manual SI and draft BL uploads without requiring an email.
+- Store emails, cases, corrections, and processing history in a persistent database.
+- Improve extraction and OCR accuracy across different document formats and layouts, then evaluate performance against the full dataset.
+- Add editable confirmation and correction message drafts for reviewed cases.
+- Improve handling of large inboxes with background processing, progress tracking, and retry controls.
