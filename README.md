@@ -60,8 +60,15 @@ cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
+Copy-Item .env.example .env
+# Set SMTP_PASSWORD in .env to your Gmail app password before testing email delivery.
 uvicorn app.main:app --reload --port 8001
 ```
+
+The local `backend/.env` file is ignored by Git. The example config routes
+supervisor and sender-follow-up demo messages to the controlled demo recipient
+while preserving the original sender address in workflow data. Never commit the
+Gmail app password.
 
 Open `http://127.0.0.1:8001/docs` for the API documentation.
 

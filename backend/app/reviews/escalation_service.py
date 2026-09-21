@@ -53,6 +53,32 @@ class SMTPEmailSender:
         self.use_tls = use_tls
 
     @classmethod
+    def missing_configuration_keys(
+        cls,
+        recipient: str | None,
+    ) -> list[str]:
+        missing: list[str] = []
+        host = os.getenv("SMTP_HOST")
+        sender = os.getenv("SMTP_FROM_EMAIL")
+        username = os.getenv("SMTP_USERNAME")
+        password = os.getenv("SMTP_PASSWORD")
+        if not host:
+            missing.append("SMTP_HOST")
+        if not sender:
+            missing.append("SMTP_FROM_EMAIL")
+        if not recipient:
+            missing.append("SUPERVISOR_EMAIL or delivery recipient")
+        if username and not password:
+            missing.append("SMTP_PASSWORD")
+        if password and not username:
+            missing.append("SMTP_USERNAME")
+        try:
+            int(os.getenv("SMTP_PORT", "587"))
+        except ValueError:
+            missing.append("SMTP_PORT (must be an integer)")
+        return missing
+
+    @classmethod
     def from_environment(cls) -> "SMTPEmailSender | None":
         return cls.from_environment_for_recipient(os.getenv("SUPERVISOR_EMAIL"))
 
@@ -61,21 +87,21 @@ class SMTPEmailSender:
         cls,
         recipient: str | None,
     ) -> "SMTPEmailSender | None":
+        if cls.missing_configuration_keys(recipient):
+            return None
         host = os.getenv("SMTP_HOST")
         sender = os.getenv("SMTP_FROM_EMAIL")
-        if not host or not sender or not recipient:
-            return None
-        try:
-            port = int(os.getenv("SMTP_PORT", "587"))
-        except ValueError:
-            return None
+        username = os.getenv("SMTP_USERNAME")
+        password = os.getenv("SMTP_PASSWORD")
+        port = int(os.getenv("SMTP_PORT", "587"))
+        assert host is not None and sender is not None and recipient is not None
         return cls(
             host=host,
             port=port,
             sender=sender,
             recipient=recipient,
-            username=os.getenv("SMTP_USERNAME"),
-            password=os.getenv("SMTP_PASSWORD"),
+            username=username,
+            password=password,
             use_tls=os.getenv("SMTP_USE_TLS", "1") == "1",
         )
 

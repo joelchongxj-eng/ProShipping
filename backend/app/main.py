@@ -5,6 +5,7 @@ from urllib.parse import quote, unquote
 from uuid import uuid4
 
 import httpx
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -31,6 +32,9 @@ from app.services.upload_store import UploadComparisonStore
 from app.submission.router import create_submission_workflow_router
 from app.submission.service import SubmissionWorkflowService
 from app.submission.store import SubmissionWorkflowStore
+
+
+load_dotenv()
 
 
 app = FastAPI(title="ProShipping API", version="0.1.0")

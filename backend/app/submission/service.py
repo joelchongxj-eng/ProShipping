@@ -53,6 +53,9 @@ class SubmissionWorkflowService:
         self.supervisor_email_lookup: Callable[[], str | None] = (
             lambda: os.getenv("SUPERVISOR_EMAIL")
         )
+        self.demo_email_recipient_lookup: Callable[[], str | None] = (
+            lambda: os.getenv("DEMO_EMAIL_RECIPIENT")
+        )
 
     def add_supervisor(
         self,
@@ -230,25 +233,31 @@ class SubmissionWorkflowService:
         original = self.store.dispatch(dispatch_id)
         if original is None:
             raise SubmissionWorkflowError(404, "Submission dispatch not found.")
-        retry_recipients = {
-            outcome.recipient or ""
-            for outcome in original.outcomes
-            if outcome.status in {
+        original_messages = self.store.dispatch_messages(dispatch_id)
+        retry_message_keys = {
+            message_key
+            for message_key, outcome in zip(
+                original_messages,
+                original.outcomes,
+                strict=False,
+            )
+            if outcome.status
+            in {
                 SubmissionDeliveryStatus.FAILED,
                 SubmissionDeliveryStatus.NOT_CONFIGURED,
             }
         }
-        if not retry_recipients:
+        if not retry_message_keys:
             raise SubmissionWorkflowError(409, "Only failed deliveries can be resent.")
         messages = {
             recipient: message
-            for recipient, message in self.store.dispatch_messages(dispatch_id).items()
-            if recipient in retry_recipients
+            for recipient, message in original_messages.items()
+            if recipient in retry_message_keys
         }
         intended = {
             recipient: items
             for recipient, items in self.store.intended_snapshots(dispatch_id).items()
-            if recipient in retry_recipients
+            if recipient in retry_message_keys
         }
         if original.channel is SubmissionChannel.SUPERVISOR and "" in messages:
             configured_recipient = self.supervisor_email_lookup()
@@ -282,7 +291,10 @@ class SubmissionWorkflowService:
         outcomes: list[SubmissionDeliveryOutcome] = []
         successful_ids: set[str] = set()
         for recipient, (subject, body) in messages.items():
-            outcome = await self._deliver(recipient or None, subject, body)
+            delivery_recipient = recipient or None
+            if channel is SubmissionChannel.SENDER:
+                delivery_recipient = self.demo_email_recipient_lookup() or delivery_recipient
+            outcome = await self._deliver(delivery_recipient, subject, body)
             outcomes.append(outcome)
             if outcome.status is SubmissionDeliveryStatus.SENT and recipient:
                 snapshot = intended_snapshots.get(recipient, [])
@@ -317,11 +329,15 @@ class SubmissionWorkflowService:
         attempted_at = datetime.now(UTC)
         sender = self.sender_factory(recipient) if recipient else None
         if sender is None:
+            missing = SMTPEmailSender.missing_configuration_keys(recipient)
+            detail = "Email delivery is not configured."
+            if missing:
+                detail = f"{detail} Missing SMTP configuration: {', '.join(missing)}."
             return SubmissionDeliveryOutcome(
                 recipient=recipient,
                 status=SubmissionDeliveryStatus.NOT_CONFIGURED,
                 attempted_at=attempted_at,
-                error_reason="Email delivery is not configured.",
+                error_reason=detail,
             )
         try:
             await sender.send(subject, body)

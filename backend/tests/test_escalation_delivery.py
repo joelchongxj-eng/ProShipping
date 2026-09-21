@@ -4,6 +4,7 @@ from uuid import UUID
 
 import app.main as main
 from app.models import CaseRecord, EmailCategory, EmailRecord
+from app.reviews.escalation_service import SMTPEmailSender
 from app.services.document_pair import compare_document_pair
 
 
@@ -337,3 +338,70 @@ def test_invalid_smtp_port_is_not_consulted_until_submission(
         "/api/cases/email_escalation_bad_smtp/escalations"
     ).json()["assignments"][0]
     assert assignment["delivery_status"] is None
+
+
+def test_smtp_sender_uses_starttls_authentication_and_configured_from_address(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[tuple] = []
+
+    class FakeSMTP:
+        def __init__(self, host: str, port: int, timeout: int) -> None:
+            events.append(("connect", host, port, timeout))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args) -> None:
+            return None
+
+        def starttls(self) -> None:
+            events.append(("starttls",))
+
+        def login(self, username: str, password: str) -> None:
+            events.append(("login", username, bool(password)))
+
+        def send_message(self, message) -> None:
+            events.append(("send", message["From"], message["To"], message["Subject"]))
+
+    monkeypatch.setenv("SMTP_HOST", "smtp.gmail.com")
+    monkeypatch.setenv("SMTP_PORT", "587")
+    monkeypatch.setenv("SMTP_FROM_EMAIL", "proshipping.demo@gmail.com")
+    monkeypatch.setenv("SMTP_USERNAME", "proshipping.demo@gmail.com")
+    monkeypatch.setenv("SMTP_USE_TLS", "1")
+    monkeypatch.setenv("SMTP_PASSWORD", str(UUID(int=1)))
+    monkeypatch.setattr("app.reviews.escalation_service.smtplib.SMTP", FakeSMTP)
+    sender = main.submission_workflow_service.sender_factory(
+        "controlled-demo@example.com"
+    )
+    assert sender is not None
+
+    sender._send_sync("Submission test", "Test body")
+
+    assert events[0] == ("connect", "smtp.gmail.com", 587, 15)
+    assert events[1] == ("starttls",)
+    assert events[2][0:2] == ("login", "proshipping.demo@gmail.com")
+    assert events[3] == (
+        "send",
+        "proshipping.demo@gmail.com",
+        "controlled-demo@example.com",
+        "Submission test",
+    )
+
+
+def test_smtp_sender_is_not_configured_when_authentication_is_incomplete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SMTP_HOST", "smtp.gmail.com")
+    monkeypatch.setenv("SMTP_FROM_EMAIL", "proshipping.demo@gmail.com")
+    monkeypatch.setenv("SMTP_USERNAME", "proshipping.demo@gmail.com")
+    monkeypatch.delenv("SMTP_PASSWORD", raising=False)
+
+    sender = main.submission_workflow_service.sender_factory(
+        "controlled-demo@example.com"
+    )
+
+    assert sender is None
+    assert SMTPEmailSender.missing_configuration_keys("controlled-demo@example.com") == [
+        "SMTP_PASSWORD"
+    ]

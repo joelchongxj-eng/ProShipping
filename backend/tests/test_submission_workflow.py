@@ -1,4 +1,5 @@
 import copy
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -105,10 +106,12 @@ def clear_workflow_state(monkeypatch: pytest.MonkeyPatch):
     if workflow_service is not None:
         original_factory = workflow_service.sender_factory
         original_lookup = workflow_service.supervisor_email_lookup
+        original_demo_lookup = workflow_service.demo_email_recipient_lookup
         workflow_service.sender_factory = lambda recipient: RecordingSender(recipient, messages)
         workflow_service.supervisor_email_lookup = lambda: "supervisor@example.com"
+        workflow_service.demo_email_recipient_lookup = lambda: None
     else:
-        original_factory = original_lookup = None
+        original_factory = original_lookup = original_demo_lookup = None
     yield messages
     main.cases.clear()
     main.human_review_store.clear()
@@ -118,6 +121,7 @@ def clear_workflow_state(monkeypatch: pytest.MonkeyPatch):
     if workflow_service is not None:
         workflow_service.sender_factory = original_factory
         workflow_service.supervisor_email_lookup = original_lookup
+        workflow_service.demo_email_recipient_lookup = original_demo_lookup
 
 
 def test_escalate_queues_supervisor_item_without_sending(clear_workflow_state) -> None:
@@ -271,6 +275,53 @@ def test_sender_send_groups_and_isolates_recipients(clear_workflow_state) -> Non
     assert client.get("/api/submission-workflow").json()["sender_follow_up"]["status"] == "SUBMITTED"
 
 
+def test_sender_demo_recipient_preserves_original_sender_and_redirects_delivery(
+    clear_workflow_state,
+) -> None:
+    seed_case("email_demo", sender="original-sender@example.com")
+    client = TestClient(main.app)
+    request_information(client, "email_demo")
+    main.submission_workflow_service.demo_email_recipient_lookup = (
+        lambda: "controlled-demo@example.com"
+    )
+
+    sent = client.post("/api/submission/sender/send")
+    workflow = client.get("/api/submission-workflow").json()["sender_follow_up"]
+
+    assert sent.status_code == 200
+    assert sent.json()["outcomes"][0]["recipient"] == "controlled-demo@example.com"
+    assert clear_workflow_state[0][0] == "controlled-demo@example.com"
+    assert workflow["items"][0]["sender_email"] == "original-sender@example.com"
+    assert "SMTP_PASSWORD" not in str(sent.json())
+
+
+def test_sender_demo_recipient_failed_dispatch_can_be_resent(
+    clear_workflow_state,
+) -> None:
+    seed_case("email_demo_resend", sender="original-sender@example.com")
+    client = TestClient(main.app)
+    request_information(client, "email_demo_resend")
+    main.submission_workflow_service.demo_email_recipient_lookup = (
+        lambda: "controlled-demo@example.com"
+    )
+    main.submission_workflow_service.sender_factory = (
+        lambda recipient: FailingSender(recipient, [])
+    )
+    failed = client.post("/api/submission/sender/send")
+    main.submission_workflow_service.sender_factory = (
+        lambda recipient: RecordingSender(recipient, clear_workflow_state)
+    )
+
+    resent = client.post(
+        f"/api/submission/dispatches/{failed.json()['dispatch_id']}/resend"
+    )
+
+    assert resent.status_code == 200
+    assert resent.json()["outcomes"][0]["recipient"] == "controlled-demo@example.com"
+    assert resent.json()["outcomes"][0]["status"] == "SENT"
+    assert clear_workflow_state[0][0] == "controlled-demo@example.com"
+
+
 def test_partial_sender_failure_is_update_required(clear_workflow_state) -> None:
     client = TestClient(main.app)
     for email_id, sender in (("email_a", "a@example.com"), ("email_b", "b@example.com")):
@@ -411,7 +462,8 @@ def test_workflow_get_is_read_only_and_exposes_no_secrets(monkeypatch) -> None:
     seed_case("email_read_only")
     client = TestClient(main.app)
     escalate(client, "email_read_only")
-    monkeypatch.setenv("SMTP_PASSWORD", "never-expose-this")
+    secret_marker = str(uuid4())
+    monkeypatch.setenv("SMTP_PASSWORD", secret_marker)
     monkeypatch.setenv("GROQ_API_KEY", "never-expose-groq")
 
     first = client.get("/api/submission-workflow").json()
@@ -419,6 +471,6 @@ def test_workflow_get_is_read_only_and_exposes_no_secrets(monkeypatch) -> None:
 
     assert first == second
     serialized = str(first)
-    assert "never-expose-this" not in serialized
+    assert secret_marker not in serialized
     assert "never-expose-groq" not in serialized
     assert "Private email body" not in serialized

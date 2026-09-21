@@ -165,7 +165,7 @@ function SubmissionSectionPanel({
                   </div>
                   <h3 className="mt-2 break-words text-sm font-semibold text-slate-950">{item.subject}</h3>
                   <dl className="mt-3 grid gap-x-5 gap-y-3 text-xs sm:grid-cols-2 xl:grid-cols-4">
-                    {!supervisor && <div><dt className="text-slate-500">Sender email</dt><dd className="mt-1 break-all text-slate-800">{item.sender_email ?? "Not available"}</dd></div>}
+                    {!supervisor && <div><dt className="text-slate-500">Original sender email</dt><dd className="mt-1 break-all text-slate-800">{item.sender_email ?? "Not available"}</dd></div>}
                     <div><dt className="text-slate-500">Review reason</dt><dd className="mt-1 text-slate-800">{item.review_reason ? getReviewReasonDisplay(item.review_reason).label : "Not supplied"}</dd></div>
                     <div><dt className="text-slate-500">Affected field</dt><dd className="mt-1 text-slate-800">{shippingFieldLabel(item.field)}</dd></div>
                     <div><dt className="text-slate-500">SI value</dt><dd className="mt-1 break-words text-slate-800">{item.si_value ?? "Unavailable"}</dd></div>
