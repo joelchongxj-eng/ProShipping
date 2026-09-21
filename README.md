@@ -1051,136 +1051,150 @@ Both processing methods ultimately use the same comparison logic and generate fi
 
 ---
 
-## ⚙️ Implementation Details
+## Challenges Faced
 
-### Email Processing
+### 1. Establishing a Reliable Verification Baseline
 
-The backend communicates asynchronously with the external Inbox service using `httpx`. Incoming emails are converted into internal case records and classified into the appropriate operational category.
+One of the earliest challenges was converting a large inbox of approximately 520 emails into structured verification cases. Since the inbox contained different types of messages, the system first needed to distinguish genuine Shipping Instruction (SI) and Bill of Lading (BL) comparison requests from unrelated emails before processing their attachments.
 
-When an email is identified as a **BL comparison request**, the backend locates the associated Shipping Instruction and draft Bill of Lading attachments before beginning document verification.
+The shipping documents themselves also used inconsistent field labels, layouts, abbreviations, and formatting. Important information such as shipper names, consignee details, port names, container counts, and gross weights could appear in different locations or formats. To address this, the backend introduced deterministic extraction and normalization logic before performing field-level comparisons.
 
-### Document Extraction
+Another difficulty was maintaining accurate results without producing false matches, fabricated values, or allowing AI-generated values to overwrite more reliable deterministic extraction. Comparison rules and validation were therefore designed so that uncertain cases could be identified instead of being automatically accepted.
 
-ProShipping supports:
+### 2. Supporting Different Document Formats
 
-* `.txt`
-* `.pdf`
-* `.docx`
-* `.xlsx`
+Supporting plain-text files alone was not sufficient because SI and BL documents appeared in multiple formats, including:
 
-Document-processing libraries including **PyMuPDF, pypdf, python-docx, openpyxl, and Pillow** are used to extract or prepare document content.
+* TXT
+* PDF
+* DOCX
+* XLSX
+* Scanned or image-only PDF documents
 
-When AI document processing is enabled, Groq can additionally extract structured shipping information and transcribe scanned-document images.
+Each format required different extraction methods. Tables, multiline addresses, bilingual labels, different field positions, and image-based documents frequently caused missing or incorrect extraction results.
 
-### Seven-Field Extraction
+The system therefore added format-specific document readers together with document-type validation and source evidence tracking. Scanned and image-only PDFs required an AI Vision fallback when normal text extraction was unavailable.
 
-Each Shipping Instruction and draft Bill of Lading is converted into a common structured representation containing:
+Some attachments were also damaged, missing, incorrectly labelled, or inconsistent with their filenames. Instead of forcing a comparison result, these cases could be routed to `NEEDS_REVIEW` for manual inspection.
 
-```text
-Shipper
-Consignee
-Notify Party
-Port of Loading
-Port of Discharge
-Container Count
-Gross Weight
-```
+### 3. Managing AI Reliability
 
-The system also preserves information such as the original extracted value, normalized value, source evidence, and available confidence information.
+AI-assisted extraction introduced additional challenges. Selected tests produced issues such as OCR spelling errors, values extracted from the wrong document section, malformed JSON responses, and Groq API rate limits.
 
-### Normalization and Comparison
+To reduce these problems, the backend introduced stronger field anchoring, structured response validation, bounded retries, and controls to reduce bursts of AI requests.
 
-Before comparing documents, extracted values are normalized to reduce false mismatches caused by harmless formatting differences.
+AI was also treated as a supporting mechanism rather than the sole source of truth. Deterministic extraction remained important, and uncertain AI results were prevented from silently replacing verified values.
 
-For example:
+The AI-related tests were performed on selected cases and therefore do not represent complete accuracy testing across the entire 520-email dataset.
 
-```text
-SI: Port of Loading
-BL: Load Port
-```
+### 4. Integrating the Frontend and Backend
 
-or differently formatted versions of the same company, location, quantity, or weight may still represent equivalent shipment information.
+As development progressed, the backend API continued to gain new fields, statuses, review actions, source locations, retry states, escalation information, and submission workflows. The frontend therefore had to continuously remain compatible with the latest API contracts while avoiding regressions in existing functionality.
 
-When enabled, semantic AI comparison can evaluate cases where simple deterministic comparison is insufficient. The semantic comparison can return:
+Another challenge involved backend connectivity. Different frontend features initially constructed backend URLs in different ways, which could cause some pages to report that the backend was unavailable even while other features were still working. Backend URL handling was later centralized so that direct requests and proxy routes followed a consistent strategy.
 
-* `EQUIVALENT`
-* `DIFFERENT`
-* `UNCERTAIN`
+The integration also required the frontend and backend to use consistent:
 
-Uncertain results are not automatically accepted and can instead be routed for human review.
+* Case IDs
+* Verification statuses
+* Review states
+* Field evidence
+* API response structures
+* Submission workflow states
 
-### Manual Upload Processing
+Maintaining these contracts was important because the backend remained the primary source of truth for system state.
 
-The backend provides a dedicated upload comparison endpoint for directly submitting an SI and BL pair.
+### 5. Building Accurate Source Evidence and Document Viewing
 
-Uploaded files are:
+The system needed to show users where extracted information originated instead of displaying only the final comparison result.
 
-1. Validated by file extension
-2. Checked against the configured maximum file size
-3. Stored temporarily
-4. Processed using the document comparison pipeline
-5. Assigned a unique comparison ID
-6. Made available for subsequent review and source inspection
+This became difficult because different file formats expose source locations differently. TXT files can reference text positions, PDFs use page-based locations, while DOCX and XLSX files require different evidence representations.
 
-Unsafe paths and unsupported attachment formats are rejected by the API.
+Attachment paths also sometimes included directory prefixes while the backend expected only filenames. The frontend therefore needed to normalize these paths before retrieving documents.
 
-### Human Review and Retry
+The source viewer was designed to highlight exact evidence whenever sufficient location information was available, while using clear fallbacks when precise highlighting could not be provided.
 
-Cases that cannot be verified reliably can enter the Human Review workflow.
+### 6. Presenting Complex Comparison Results Clearly
 
-The backend contains dedicated services for:
+Each of the seven shipping fields can contain multiple pieces of information, including:
 
-* Human review records
-* Review queues
-* Retry execution
-* Supervisor escalation
-* Submission workflows
+* Raw extracted value
+* Normalized value
+* Match status
+* Confidence information
+* Comparison reason
+* Comparison method
+* Semantic equivalence explanation
+* Source evidence
 
-This allows the system to preserve the original automated result while separately recording corrections or reviewer decisions.
+Displaying all of this information without overwhelming the user was a major frontend challenge.
 
-### Evidence-First Verification
+The interface therefore needed to balance technical transparency with readability, allowing users to inspect detailed evidence while still understanding the overall SI–BL comparison quickly.
 
-ProShipping does not rely only on the final `MATCH` or `MISMATCH` status. The verification model retains supporting information so users can understand why a result was produced.
+### 7. Implementing the Human Review Workflow
 
-Depending on the source document, supporting evidence can include extracted text, PDF references, document locations, original attachments, raw values, normalized values, and comparison explanations.
+The Human Review process involved several different actions, including:
 
-### API Endpoints
+* Confirm
+* Correct
+* Mark as Equivalent
+* Mark as Unreadable
+* Add Note
+* Retry
+* Escalate
+* Request Information
 
-Important backend endpoints include:
+Each action required different fields, validation rules, scopes, forms, and refresh behaviour.
 
-```text
-GET  /health
-POST /api/process-all
-GET  /api/cases
-GET  /api/cases/{email_id}
+A further challenge was keeping automated results separate from human decisions. Automated verification status, reviewer corrections, retry outcomes, escalation state, and communication status represent different stages of the workflow and could not be merged into a single result without creating misleading information.
 
-POST /api/compare-upload
-GET  /api/upload-comparisons/{comparison_id}
+The system therefore preserves these states separately so that the original automated output and later human decisions remain traceable.
 
-GET  /api/export/detailed-csv
-GET  /api/submission
-```
+### 8. Implementing the Submission and Email Workflow
 
-Additional routers handle the Human Review, escalation, retry, and submission workflows.
+The Submission workspace introduced another layer of workflow complexity. Supervisor Escalations and Sender Follow-Up required separate queues, statuses, dispatch actions, update behaviour, deletion, failure handling, and resend functionality.
 
-### Data Storage
+The frontend needed to use the workflow state returned by the backend rather than recreating or duplicating submission state locally.
 
-The current implementation primarily uses application-level stores for active processing data rather than a persistent production database.
+Email delivery also required secure configuration and error handling. The backend needed to support both SMTP and HTTPS-based email delivery while protecting credentials and preserving submission history, resend behaviour, and update operations.
 
-As a result, operational state such as processed cases and review-related information should be treated as runtime data unless it has been exported or otherwise persisted externally.
+One integration issue involved successful responses that contained no response body. For example, removing a submission could succeed in the backend, but the frontend proxy initially attempted to attach content to a `No Content` response, causing an error even though the operation itself had completed successfully.
 
-### Security and Validation
+### 9. Removing Mock and Outdated Behaviour
 
-Several safeguards are implemented in the backend, including:
+Early versions of the frontend included development placeholders such as mock dates, confidence values, classification details, review messages, and locally simulated submission behaviour.
 
-* File-extension validation
-* Upload-size limits
-* Safe attachment-path checks
-* Pydantic data validation
-* Configurable CORS restrictions
-* Structured AI response validation
-* API-key-based external AI access
-* Email-delivery configuration validation
-* Production-specific configuration checks
+Removing these elements required careful checking because they had to be replaced with real backend data without breaking existing UI behaviour.
 
-These controls help ensure that uploaded files, external service requests, and generated results are handled in a predictable and controlled manner.
+This process also required removing outdated assumptions whenever backend contracts changed, while ensuring that the interface accurately represented real system state and error conditions.
+
+### 10. Testing the Complete Integrated Workflow
+
+Testing the complete application was challenging because the system contained many interconnected features.
+
+Testing needed to cover not only the main SI–BL verification process, but also:
+
+* The complete 520-email workflow
+* Manual uploads
+* Human Review
+* Retry processing
+* Escalations
+* Source document viewing
+* CSV export
+* Submission JSON
+* Email delivery
+* Browser integration
+
+Changes made to one component could affect another part of the workflow. Integration testing was therefore necessary to ensure that improvements did not introduce regressions elsewhere.
+
+### Current Limitations
+
+The prototype now covers the main document verification, review, escalation, and submission workflow. However, several areas remain suitable for future improvement.
+
+Current limitations include:
+
+* Workflow records are primarily stored in application memory.
+* Persistent database storage has not yet been implemented.
+* Full user authentication and authorization are not yet available.
+* AI accuracy has not been comprehensively evaluated across all 520 records.
+* Broader regression and production-scale testing are still required.
