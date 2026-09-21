@@ -740,3 +740,125 @@ Processed cases, uploaded comparison sessions, human-review records, retry recor
 
 ---
 
+## 🚀 Setup and Run Instructions
+
+### Prerequisites
+
+Make sure the following are installed before running ProShipping:
+
+* **Python 3.11 or later**
+* **Node.js and npm**
+* Access to the project's external **Inbox service**
+* A **Groq API key** if AI processing is enabled
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/joelchongxj-eng/ProShipping.git
+cd ProShipping
+git checkout final-integration
+```
+
+### 2. Start the Backend
+
+Navigate to the backend directory:
+
+```bash
+cd backend
+```
+
+Create a Python virtual environment:
+
+#### Windows PowerShell
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+#### macOS / Linux
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Install the backend dependencies:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+Configure the required environment variables in a `.env` file or through your operating system environment.
+
+Start the FastAPI server:
+
+```bash
+python -m uvicorn app.main:app --reload --port 8001
+```
+
+The backend API will be available at:
+
+```text
+http://localhost:8001
+```
+
+Interactive Swagger API documentation can be opened at:
+
+```text
+http://localhost:8001/docs
+```
+
+### 3. Start the Frontend
+
+Open another terminal and navigate to:
+
+```bash
+cd frontend
+```
+
+Install frontend dependencies:
+
+```bash
+npm install
+```
+
+Configure the frontend environment variables in `.env.local`, for example:
+
+```dotenv
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8001
+```
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+in your browser.
+
+### 4. Run Backend Tests
+
+From the `backend` directory:
+
+```bash
+python -m pytest -q
+```
+
+### 5. Production Frontend Build
+
+To create and run a production build:
+
+```bash
+npm run build
+npm start
+```
+
+---
+
