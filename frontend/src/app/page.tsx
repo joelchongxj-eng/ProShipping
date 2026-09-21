@@ -25,7 +25,7 @@ export default async function Page() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start">
+      <div className="flex flex-col justify-between gap-4 rounded-md border border-blue-100 bg-blue-50/60 p-4 shadow-sm sm:flex-row sm:items-start">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-950">Dashboard</h1>
           <p className="mt-1.5 text-sm leading-6 text-slate-600">Overview of shipping document verification cases.</p>

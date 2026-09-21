@@ -4,7 +4,7 @@ import { AppSidebar } from "./app-sidebar";
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-dvh bg-slate-50 md:flex">
+    <div className="min-h-dvh bg-[#eef3f8] md:flex">
       <a href="#main-content" className="sr-only fixed top-2 left-2 z-[70] rounded-md bg-blue-950 px-4 py-2.5 text-sm font-semibold text-white shadow-lg focus:not-sr-only">
         Skip to content
       </a>

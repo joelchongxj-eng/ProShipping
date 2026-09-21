@@ -21,7 +21,7 @@ export default async function Page() {
 
   return (
     <div className="space-y-5">
-      <div className="border-b border-slate-200 pb-5">
+      <div className="rounded-md border border-blue-100 bg-blue-50/60 p-4 shadow-sm">
         <h1 className="text-2xl font-bold tracking-tight text-slate-950">Human Review</h1>
         <p className="mt-1.5 max-w-3xl text-sm leading-6 text-slate-600">Operational queue for backend-identified mismatches and cases requiring human attention.</p>
       </div>

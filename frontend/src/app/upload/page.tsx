@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Manual Upload" };
 export default function UploadPage() {
   return (
     <div className="space-y-5">
-      <header className="border-b border-slate-200 pb-5">
+      <header className="rounded-md border border-blue-100 bg-blue-50/60 p-4 shadow-sm">
         <h1 className="text-2xl font-bold tracking-tight text-slate-950">Manual Document Verification</h1>
         <p className="mt-1.5 max-w-3xl text-sm leading-6 text-slate-600">Upload one Shipping Instruction and its corresponding Draft Bill of Lading. The backend will extract and compare the seven required shipping fields.</p>
       </header>

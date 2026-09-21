@@ -10,7 +10,7 @@ export function StatusSection({ group, title, cases }: { group: BoardGroup; titl
   const remaining = Math.max(0, cases.length - PREVIEW_LIMIT);
   return (
     <section aria-labelledby={headingId} className="flex h-[392px] min-w-0 flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-      <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-4">
+      <div className={`flex h-12 shrink-0 items-center justify-between gap-3 border-b px-4 ${group === "matched" ? "border-emerald-100 bg-emerald-50/70" : group === "mismatch" ? "border-red-100 bg-red-50/70" : "border-slate-200 bg-slate-50/80"}`}>
         <h2 id={headingId} className="flex items-center gap-2 text-sm font-semibold text-slate-950">
           <span aria-hidden="true" className={`size-2.5 rounded-full border ${statusStyles[group]}`} />
           {title}

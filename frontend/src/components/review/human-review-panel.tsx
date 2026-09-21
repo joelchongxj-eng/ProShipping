@@ -17,11 +17,11 @@ export interface HumanReviewData {
 const reviewStatusStyles: Record<HumanReviewStatus, string> = {
   PENDING: "border-slate-300 bg-slate-50 text-slate-700",
   IN_REVIEW: "border-blue-200 bg-blue-50 text-blue-800",
-  CONFIRMED: "border-green-200 bg-green-50 text-green-800",
+  CONFIRMED: "border-emerald-200 bg-emerald-50 text-emerald-800",
   CORRECTED: "border-blue-200 bg-blue-50 text-blue-800",
-  ACCEPTED_EQUIVALENT: "border-green-200 bg-green-50 text-green-800",
-  UNREADABLE: "border-yellow-300 bg-yellow-50 text-yellow-900",
-  RETRY_REQUESTED: "border-yellow-300 bg-yellow-50 text-yellow-900",
+  ACCEPTED_EQUIVALENT: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  UNREADABLE: "border-amber-200 bg-amber-50 text-amber-900",
+  RETRY_REQUESTED: "border-amber-200 bg-amber-50 text-amber-900",
   ESCALATED: "border-purple-300 bg-purple-50 text-purple-800",
   INFORMATION_REQUESTED: "border-blue-200 bg-blue-50 text-blue-800",
 };
@@ -92,7 +92,7 @@ export function HumanReviewPanel({ item, data, selectedField }: { item: Verifica
       <div className="space-y-5 p-4 sm:p-5">
         <section aria-labelledby="review-summary-title"><h3 id="review-summary-title" className="text-xs font-semibold uppercase tracking-wider text-slate-500">Review Summary</h3><div className="mt-3">{data.summary ? <ReviewSummaryContent summary={data.summary} /> : <SectionError message={data.errors?.summary ?? "Review summary is not available."} />}</div></section>
         <div className="grid gap-5 xl:grid-cols-2"><section aria-labelledby="review-history-title" className="rounded-md border border-slate-200 bg-slate-50/50 p-3"><h3 id="review-history-title" className="text-sm font-semibold text-slate-900">Review History</h3><div className="mt-2">{data.history ? <ReviewHistoryContent history={data.history} /> : <SectionError message={data.errors?.history ?? "Review history is not available."} />}</div></section><section aria-labelledby="review-actions-title" className="rounded-md border border-blue-200 bg-blue-50/30 p-3"><h3 id="review-actions-title" className="text-sm font-semibold text-slate-900">Review Actions</h3><div className="mt-2"><ReviewActions item={item} selectedField={selectedField} /></div></section></div>
-        <div className="grid gap-5 xl:grid-cols-2"><section aria-labelledby="retry-history-title" className="rounded-md border border-slate-200 p-3"><h3 id="retry-history-title" className="text-sm font-semibold text-slate-900">Retry History</h3><div className="mt-2">{data.retries ? <RetryContent retries={data.retries} /> : <SectionError message={data.errors?.retries ?? "Retry history is not available."} />}</div></section><section aria-labelledby="escalation-history-title" className="rounded-md border border-slate-200 p-3"><h3 id="escalation-history-title" className="text-sm font-semibold text-slate-900">Escalation History</h3><div className="mt-2">{data.escalations ? <EscalationContent history={data.escalations} /> : <SectionError message={data.errors?.escalations ?? "Escalation history is not available."} />}</div></section></div>
+        <div className="grid gap-5 xl:grid-cols-2"><section aria-labelledby="retry-history-title" className="rounded-md border border-slate-200 bg-slate-50/70 p-3"><h3 id="retry-history-title" className="text-sm font-semibold text-slate-900">Retry History</h3><div className="mt-2">{data.retries ? <RetryContent retries={data.retries} /> : <SectionError message={data.errors?.retries ?? "Retry history is not available."} />}</div></section><section aria-labelledby="escalation-history-title" className="rounded-md border border-purple-100 bg-purple-50/40 p-3"><h3 id="escalation-history-title" className="text-sm font-semibold text-slate-900">Escalation History</h3><div className="mt-2">{data.escalations ? <EscalationContent history={data.escalations} /> : <SectionError message={data.errors?.escalations ?? "Escalation history is not available."} />}</div></section></div>
       </div>
     </section>
   );

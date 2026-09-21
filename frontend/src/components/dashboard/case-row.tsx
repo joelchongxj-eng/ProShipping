@@ -29,7 +29,7 @@ export function CaseRow({ item, returnTo, compact = false, prefetch = true }: { 
         </div>
         <p title={compact ? item.email.subject : undefined} className={`text-sm font-semibold leading-5 text-slate-950 ${compact ? "mt-1 truncate" : "mt-2 break-words"}`}>{item.email.subject}</p>
         {!compact && <p className="mt-1 break-all text-xs text-slate-500">Sender: {item.email.from}</p>}
-        {!compact && reviewReason && <p className="mt-2 text-xs font-medium text-yellow-900">Review reason: {reviewReason.label}</p>}
+        {!compact && reviewReason && <p className="mt-2 text-xs font-medium text-amber-900">Review reason: {reviewReason.label}</p>}
         <div className={`flex items-end justify-between gap-3 text-xs leading-5 ${compact ? "mt-0.5" : "mt-3"}`}>
           <span className={compact ? "min-w-0 truncate text-slate-600" : "text-slate-600"}>{compact && <span className="font-medium text-slate-700">{item.email.from} · </span>}{item.category !== "BL_COMPARISON" ? "Classification only" : item.status === "FAILED" ? "Processing failed" : reviewReason ? reviewReason.label : issues.length ? issues.join(" · ") : item.comparison.length === 0 ? emptyComparisonMessage : "No field issues reported"}</span>
           {!compact && <span className="shrink-0 font-semibold text-blue-900 group-hover:text-blue-700">Open case <span aria-hidden="true">→</span></span>}

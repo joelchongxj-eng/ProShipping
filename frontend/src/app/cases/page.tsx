@@ -29,7 +29,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
   return (
     <div className="space-y-4">
       <BackLink href="/">Back to Dashboard</BackLink>
-      <div className="border-b border-slate-200 pb-4"><h1 className="text-2xl font-bold tracking-tight text-slate-950">{title}</h1></div>
+      <div className="rounded-md border border-blue-100 bg-blue-50/60 p-4 shadow-sm"><h1 className="text-2xl font-bold tracking-tight text-slate-950">{title}</h1></div>
       {filter === "invalid" ? (
         <p className="text-sm text-slate-600">Choose a supported status and, for Needs Review, an optional review reason. <Link href="/cases" className="underline">View all cases</Link>.</p>
       ) : (
