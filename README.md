@@ -1268,3 +1268,416 @@ Cases containing unclear values, damaged documents, extraction uncertainty, or c
 The current system demonstrates the complete workflow but is not yet a fully production-ready platform.
 
 Further work would be required for persistent storage, user authentication, security hardening, scalable deployment, comprehensive testing, monitoring, and broader accuracy evaluation.
+
+---
+
+## 🚀 Future Roadmap
+
+### 🌐 Market Direction & Opportunity
+
+The shipping industry is steadily moving toward more digital trade-document workflows.
+
+The **FIT Alliance 2024 eBL Survey** found that the proportion of respondents using electronic Bills of Lading (eBLs) in some capacity increased from **33.0% in 2022 to 49.2% in 2024**. Among respondents still relying only on paper Bills of Lading, **74.7% indicated plans to transition toward eBLs**.
+
+DCSA member carriers have also committed to significantly increasing digital Bill of Lading adoption toward **100% eBL issuance by 2030**.
+
+This transition is relevant to ProShipping because eBL adoption represents more than replacing a paper Bill of Lading with an electronic document. It is part of a broader shift toward **digitally connected shipping-document workflows**, where Shipping Instructions, draft transport documents, approvals, corrections, and final issuance can increasingly move between systems electronically.
+
+The same digital workflow contains the verification point that ProShipping already addresses:
+
+```text
+Shipping Instruction
+        │
+        ▼
+Draft Bill of Lading
+        │
+        ▼
+Verification & Review
+        │
+        ▼
+Approval / Correction
+        │
+        ▼
+Final BL / eBL
+```
+
+Today, ProShipping performs this verification mainly through **emails, attachments, and manual document uploads**.
+
+As the industry becomes more digital and API-driven, ProShipping could eventually connect directly with **carrier systems, freight-forwarding platforms, TMS, ERP, or eBL platforms** and verify Shipping Instruction and draft BL information before the document progresses toward approval.
+
+> **The opportunity is not for ProShipping to become another eBL platform, but to become the verification layer that helps ensure the information entering those digital workflows is correct.**
+
+---
+
+### 🧭 Roadmap Overview
+
+```text
+Current Working Prototype
+          │
+          ▼
+Phase 1
+Validate & Productionise
+          │
+          ▼
+Phase 2
+Commercialise & Prove Business Value
+          │
+          ▼
+Phase 3
+Integrate & Expand Across Shipping
+          │
+          ▼
+Phase 4
+Smarter Human-AI Collaboration
+          │
+          ▼
+Trusted Trade-Document
+Verification Platform
+```
+
+---
+
+### 1️⃣ Phase 1 — Validate & Productionise ProShipping
+
+The first priority is to prove that ProShipping can perform reliably across realistic shipping-document scenarios and prepare the system for operational deployment.
+
+#### Validate the Verification Engine
+
+Performance should be measured using clear technical metrics such as:
+
+- **Email classification accuracy**
+- **Field extraction accuracy**
+- **Discrepancy detection precision and recall**
+- **False-positive and false-negative rates**
+- **Human Review escalation rate**
+- **Average processing time per case**
+
+Testing should also cover difficult inputs including:
+
+- Missing information
+- Misleading email subjects
+- Different terminology
+- Formatting variations
+- Poor-quality scans
+- Image-based PDFs
+- Unusual document layouts
+- Incomplete or incorrect attachments
+
+#### Validate With Real Users
+
+Once technical reliability is established, ProShipping should be piloted with:
+
+- Shipping documentation teams
+- Freight forwarders
+- Exporters and importers
+- Logistics service providers
+
+Pilot studies could compare ProShipping-assisted verification against the existing manual process using measures such as:
+
+| Metric | What It Shows |
+| --- | --- |
+| Verification time | Operational efficiency |
+| Genuine discrepancies detected | Verification effectiveness |
+| False alarms | Unnecessary review workload |
+| Human Review rate | Level of automation achieved |
+| Reviewer time per case | Human effort required |
+| Errors corrected before approval | Early-error detection value |
+
+#### Productionise the Platform
+
+The underlying architecture should also be strengthened for continuous operational use:
+
+- Replace temporary **in-memory storage** with a persistent database.
+- Add secure authentication.
+- Introduce role-based access for staff, reviewers, supervisors, and administrators.
+- Preserve document, correction, retry, escalation, and audit histories.
+- Add background processing for larger document volumes.
+- Introduce automatic retry and failure recovery.
+- Add monitoring and structured system logs.
+- Secure documents using appropriate access controls.
+
+> **Goal:** Move ProShipping from a working hackathon prototype into a **validated and production-ready verification platform**.
+
+---
+
+### 2️⃣ Phase 2 — Commercialise Through Pilot-to-Paid Adoption
+
+Once ProShipping demonstrates reliable verification and measurable operational value, the next step is to convert that value into a sustainable commercial product.
+
+The opportunity comes from two connected trends:
+
+1. Shipping organisations continue to face **manual checking, amendments, rework, and documentation-related delays**.
+2. The industry is increasingly investing in **digital shipping-document infrastructure**.
+
+ProShipping could initially target organisations with significant document-verification workloads, including:
+
+- Freight forwarders
+- Shipping documentation teams
+- Logistics service providers
+- Exporters and shippers
+- Importers and consignees
+
+#### Business Value
+
+ProShipping's commercial value would come from helping organisations:
+
+- Reduce repetitive SI-to-BL checking.
+- Detect discrepancies earlier.
+- Reduce unnecessary Human Review.
+- Make automated decisions easier to verify through supporting evidence.
+- Preserve traceable review and correction histories.
+- Reduce one source of avoidable amendments, rework, and processing delays.
+
+A realistic commercialisation path would be:
+
+```text
+Prototype
+    │
+    ▼
+Industry Pilot
+    │
+    ▼
+Measure Operational Value
+    │
+    ▼
+Time Saved / Errors Detected /
+Review Workload Reduced
+    │
+    ▼
+Paid Deployment
+```
+
+#### Potential Business Models
+
+**B2B SaaS**
+
+Organisations subscribe based on users, verification volume, or service tier.
+
+**Usage-Based Verification**
+
+Customers pay according to the number of document pairs or shipment cases processed.
+
+**Enterprise Deployment**
+
+Larger logistics organisations receive dedicated deployments with stronger security, administration, and integrations.
+
+**Verification API**
+
+TMS, ERP, carrier, freight-forwarding, or eBL platforms integrate ProShipping directly and pay based on API usage.
+
+> **Goal:** Turn ProShipping's demonstrated operational value into a **repeatable and scalable business model**.
+
+---
+
+### 3️⃣ Phase 3 — Integrate & Expand Across the Digital Shipping Ecosystem
+
+After validating the product and commercial use case, ProShipping can expand in two directions:
+
+1. **Deeper integration with existing shipping systems**
+2. **Broader trade-document verification**
+
+#### System Integration
+
+Potential integrations include:
+
+- Microsoft Outlook and Gmail
+- Transportation Management Systems (TMS)
+- Enterprise Resource Planning systems (ERP)
+- Freight-forwarding platforms
+- Carrier systems
+- Document-management platforms
+- eBL platforms
+
+Instead of requiring users to download documents and upload them manually, future integrations could allow Shipping Instruction and draft BL information to flow automatically through ProShipping.
+
+```text
+TMS / ERP / Carrier / eBL Platform
+              │
+              ▼
+    SI + Draft BL Information
+              │
+              ▼
+          ProShipping
+              │
+              ▼
+       Verification Layer
+           ┌────┴────┐
+           ▼         ▼
+       Verified   Human Review
+           │         │
+           └────┬────┘
+                ▼
+       Existing Shipping Workflow
+                │
+                ▼
+          Final BL / eBL
+```
+
+This would allow ProShipping to function as an **embedded verification service rather than a separate standalone tool**.
+
+#### Broader Document Coverage
+
+Once SI-to-draft-BL verification has been proven, the same evidence-first approach could expand to additional trade documents such as:
+
+- Commercial invoices
+- Packing lists
+- Cargo manifests
+- Certificates of Origin
+- Customs documentation
+- Additional Bill of Lading fields
+
+ProShipping could eventually verify consistency across multiple documents belonging to the same shipment:
+
+```text
+Shipping Instruction
+        │
+        ├──────────────┐
+        ▼              ▼
+    Draft BL       Commercial Invoice
+        │              │
+        ├──────────────┤
+        ▼              ▼
+ Packing List     Cargo Manifest
+        │              │
+        └───────┬──────┘
+                ▼
+     Cross-Document Verification
+                │
+                ▼
+      Shipment-Level Review
+```
+
+The question ProShipping answers could therefore evolve from:
+
+> **"Does this draft Bill of Lading correctly reflect the Shipping Instruction?"**
+
+to:
+
+> **"Is the critical information across this shipment's documentation consistent?"**
+
+> **Goal:** Develop ProShipping into an **interoperable trade-document verification platform integrated directly into digital shipping workflows**.
+
+---
+
+### 4️⃣ Phase 4 — Smarter Human-AI Collaboration
+
+As more cases are reviewed, Human Review can evolve from simply correcting individual cases into a controlled source of reusable organisational knowledge.
+
+For example:
+
+```text
+"Port Klang, Malaysia"
+          │
+          ▼
+Reviewer Confirms Equivalence
+          │
+          ▼
+"PORT KLANG"
+          │
+          ▼
+Approved Mapping Stored
+          │
+          ▼
+Future Similar Cases Require
+Less Manual Investigation
+```
+
+The same approach could be applied to:
+
+- Port-name variations
+- Company-name variations
+- Common abbreviations
+- Shipping terminology
+- Address formatting
+- Organisation-specific document conventions
+
+ProShipping could also:
+
+- Detect recurring discrepancy patterns.
+- Surface previously approved resolutions.
+- Prioritise cases according to uncertainty.
+- Prioritise important field mismatches.
+- Provide reviewers with relevant historical context.
+
+A future decision flow could look like:
+
+```text
+High-Confidence Clear Match
+        ↓
+Routine Automated Processing
+
+Low Extraction Confidence
+        ↓
+Human Review
+
+Important Field Mismatch
+        ↓
+Higher Review Priority
+
+Known Approved Equivalence
+        ↓
+Suggested Previous Resolution
+```
+
+Human decisions should remain **controlled, traceable, and auditable**. Reviewer feedback should assist future verification without silently changing system behaviour.
+
+> **Goal:** Make ProShipping more efficient over time while preserving **human judgement, accountability, and auditability**.
+
+---
+
+## 🌍 Long-Term Vision
+
+The long-term vision for ProShipping is to become a **trusted verification layer between digital shipping information and downstream logistics operations**.
+
+As Shipping Instructions, draft transport documents, and Bills of Lading become increasingly digital, information can move between organisations faster than before.
+
+However:
+
+> **Digitalisation improves how information moves — it does not automatically guarantee that the information is correct.**
+
+ProShipping can complement this transition by verifying critical shipment information before discrepancies progress further through the documentation process.
+
+It is not intended to replace:
+
+- eBL platforms
+- TMS or ERP systems
+- Carrier systems
+- Shipping documentation professionals
+
+Instead, ProShipping can connect these workflows with an additional layer of:
+
+**⚡ Automation**  
+Reduce repetitive document checking.
+
+**🔎 Verification**  
+Detect inconsistencies before approval.
+
+**📄 Evidence**  
+Show the source behind automated results.
+
+**👤 Human Oversight**  
+Escalate uncertain cases instead of guessing.
+
+**🧾 Traceability**  
+Preserve corrections, reviews, and decisions.
+
+The future evolution of ProShipping can therefore be summarised as:
+
+```text
+Working Prototype
+        ↓
+Validated & Production-Ready Platform
+        ↓
+Commercial Verification Service
+        ↓
+Integrated Trade-Document Platform
+        ↓
+Smarter Human-AI Verification
+        ↓
+Trusted Verification Layer
+for Digital Shipping
+```
+
+> **ProShipping's long-term opportunity is not simply to automate one document comparison, but to make verification a trusted part of increasingly digital shipping workflows.**
+````
+
