@@ -732,6 +732,10 @@ ProShipping follows a client-server architecture consisting of a **Next.js front
                                         └─────────────────┘
 ```
 
+<img width="1280" height="853" alt="image" src="https://github.com/user-attachments/assets/f58d3f37-734d-4e5c-82bc-9e351ffcba40" />
+
+
+
 The frontend communicates with the backend through REST API endpoints. The backend is responsible for retrieving inbox data, accepting manually uploaded document pairs, extracting shipping information, normalizing values, comparing the Shipping Instruction against the draft Bill of Lading, and determining the final verification status.
 
 For inbox-based processing, the backend connects to an external Inbox service to retrieve emails and their attachments. AI processing can optionally be enabled through Groq to support more complex document extraction, scanned documents, email classification, and semantic equivalence checking.
