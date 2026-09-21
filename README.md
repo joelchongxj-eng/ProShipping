@@ -654,89 +654,44 @@ Automate routine cases while preserving human judgement for missing, uncertain, 
 
 ---
 
-## Tech Stack
+## 🛠 Tech Stack
 
-- **Backend:** Python 3.11+, FastAPI, Uvicorn, and Pydantic
-- **HTTP requests:** httpx
-- **Document processing:** pypdf and Pillow
-- **Optional AI:** Groq API for email classification and document extraction
-- **Testing:** pytest and pytest-asyncio
+ProShipping is built as a full-stack web application consisting of a **Next.js frontend** and a **FastAPI backend**.
 
----
+### Frontend
 
-## System Architecture
+* **Next.js 15** – frontend framework and routing
+* **React 19** – component-based user interface
+* **TypeScript** – type-safe frontend development
+* **Tailwind CSS 4** – interface styling
+* **React PDF / PDF.js** – PDF document rendering and source-document inspection
 
-ProShipping uses a FastAPI backend connected to an external Inbox service. The backend retrieves emails and attachments, classifies each email, and processes requests to compare a Shipping Instruction (SI) with a draft Bill of Lading (BL).
+### Backend
 
-For each document pair, the backend extracts seven shipping fields, normalizes their values, and compares them. Optional AI processing supports TXT, PDF, DOCX, and XLSX documents. The backend determines the final case status and stores processed cases in memory while the API is running.
+* **Python 3.11+**
+* **FastAPI** – REST API framework
+* **Uvicorn** – ASGI development server
+* **Pydantic** – request, response, and data validation
+* **httpx** – asynchronous HTTP communication with external services
 
----
+### Document Processing
 
-## Setup and Run Instructions
+* **PyMuPDF**
+* **pypdf**
+* **python-docx**
+* **openpyxl**
+* **Pillow**
 
-**Prerequisites:** Python 3.11+ and access to the external Inbox service.
+These libraries allow ProShipping to process shipping documents in formats including **PDF, TXT, DOCX, and XLSX**.
 
-1. Start the Inbox service on port `8080`, or set `INBOX_BASE_URL` to its URL.
-2. From the project root, run:
+### AI Processing
 
-   ```powershell
-   cd backend
-   python -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   python -m pip install -e ".[dev]"
-   python -m uvicorn app.main:app --reload --port 8001
-   ```
+* **Groq API** – optional AI-assisted email classification, document extraction, scanned-document transcription, and semantic comparison
 
-3. Open `http://127.0.0.1:8001/docs` for the interactive API documentation.
-4. Call `POST /api/process-all` to process emails. Use `GET /api/cases` to view cases and `GET /api/submission` to retrieve submission results.
+### Testing
 
-To run the tests, execute `python -m pytest -q` from the `backend` directory.
-
----
-
-## Environment Variables
-
-| Variable | Description | Default |
-| --- | --- | --- |
-| `INBOX_BASE_URL` | URL of the external Inbox service | `http://localhost:8080` |
-| `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000` |
-| `AI_ENABLED` | Set to `1` to enable AI processing | Disabled |
-| `GROQ_API_KEY` | Groq API key; required when AI is enabled | None |
-| `GROQ_MODEL` | Model for classification and field extraction | `openai/gpt-oss-20b` |
-| `GROQ_VISION_MODEL` | Model for scanned PDF transcription | `qwen/qwen3.8-27b` |
-
-Set environment variables before starting the backend. The application does not load `.env` files automatically.
+* **pytest**
+* **pytest-asyncio**
 
 ---
 
-## Main Workflow
-
-1. Retrieve emails from the external Inbox service.
-2. Classify each email as a BL comparison, SI request, invoice query, general message, or spam.
-3. For BL comparison requests, retrieve the SI and draft BL attachments.
-4. Extract and compare the shipper, consignee, notify party, port of loading, port of discharge, container count, and gross weight.
-5. Assign a `MATCH`, `MISMATCH`, `NEEDS_REVIEW`, or `FAILED` status.
-6. View field-level results through the case API or export results through the submission endpoint.
-
----
-
-## Limitations
-
-- Processed cases are stored in memory and are lost when the backend restarts.
-- The default processing mode extracts fields from TXT attachments only. PDF, DOCX, XLSX, and scanned PDF processing require the optional AI mode.
-- AI results can be affected by unclear scans, unusual document layouts, and provider rate limits. Full-dataset AI accuracy has not yet been measured.
-- Missing attachments, unreadable documents, uncertain values, and incorrect document types require human review.
-- The current backend does not provide an implemented dashboard, manual upload flow, or interface for correcting extracted values.
-- The API depends on an external Inbox service to process emails.
-
----
-
-## Future Improvements
-
-- Build the dashboard and inbox interface so users can inspect cases, comparisons, and source evidence.
-- Add a human review workflow for correcting extracted values and rerunning comparisons.
-- Support manual SI and draft BL uploads without requiring an email.
-- Store emails, cases, corrections, and processing history in a persistent database.
-- Improve extraction and OCR accuracy across different document formats and layouts, then evaluate performance against the full dataset.
-- Add editable confirmation and correction message drafts for reviewed cases.
-- Improve handling of large inboxes with background processing, progress tracking, and retry controls.
