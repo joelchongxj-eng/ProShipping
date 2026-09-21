@@ -66,15 +66,15 @@ export function ComparisonResult({ status, comparison, reviewReason, sourceConte
             {comparison.map((item, index) => {
               const label = fieldLabel(item.field);
               const active = selected === index;
-              const tone = item.status === "mismatch" ? "bg-red-50/60" : item.status === "needs_review" ? "bg-yellow-50/60" : item.status === "missing" ? "bg-gray-100" : "bg-white";
+              const tone = item.status === "mismatch" ? "bg-red-50/60" : item.status === "needs_review" ? "bg-yellow-50/60" : item.status === "missing" ? "bg-gray-100" : "bg-green-50/50";
               return (
                 <tr key={`${item.field}-${index}`} onClick={() => selectField(index)} data-field={item.field} data-selected={active} className={`mb-3 block cursor-pointer border border-slate-200 align-top md:mb-0 md:table-row ${tone} ${active ? "outline outline-2 -outline-offset-2 outline-slate-600" : ""}`}>
                   <th scope="row" className="block p-3 md:table-cell">
                     <button type="button" aria-pressed={active} aria-controls="field-evidence" onClick={() => selectField(index)} className="text-left text-sm font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4">{label}</button>
                     {active && <span className="mt-1 block text-xs font-normal text-slate-500">Selected</span>}
                   </th>
-                  <td className="block px-3 pb-3 md:table-cell md:pt-3"><span className="mb-1 block text-xs font-semibold text-slate-600 md:hidden">Shipping Instruction</span><ExtractedValueDisplay value={item.si} /></td>
-                  <td className="block px-3 pb-3 md:table-cell md:pt-3"><span className="mb-1 block text-xs font-semibold text-slate-600 md:hidden">Draft Bill of Lading</span><ExtractedValueDisplay value={item.bl} /></td>
+                  <td className="block px-3 pb-3 md:table-cell md:pt-3"><span className="mb-1 block text-xs font-semibold text-slate-600 md:hidden">Shipping Instruction</span><ExtractedValueDisplay value={item.si} emphasized={item.status === "mismatch"} /></td>
+                  <td className="block px-3 pb-3 md:table-cell md:pt-3"><span className="mb-1 block text-xs font-semibold text-slate-600 md:hidden">Draft Bill of Lading</span><ExtractedValueDisplay value={item.bl} emphasized={item.status === "mismatch"} /></td>
                   <td className="block px-3 pb-3 md:table-cell md:pt-3">
                     <StatusBadge status={item.status} />
                     {item.comparison_method && <p className="mt-2 text-xs font-medium text-slate-700">{comparisonMethodLabels[item.comparison_method]}</p>}

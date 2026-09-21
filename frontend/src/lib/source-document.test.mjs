@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { caseAttachmentPath, caseAttachmentProxyPath, fetchTextSource, SourceDocumentError } from "./source-document.ts";
+import { getPdfHighlightRect, resolveTextHighlight } from "./source-locator.ts";
 
 test("case source URLs preserve the backend-owned attachment path for SI and Draft BL", () => {
   const si = caseAttachmentPath("email_004", "attachments/email_004_SI.txt");
@@ -41,9 +42,33 @@ test("shared viewer keeps PDF behavior and reopens SI or BL from case metadata",
   const viewer = await readFile(new URL("../components/cases/source-viewer.tsx", import.meta.url), "utf8");
   const actions = await readFile(new URL("../components/cases/source-actions.tsx", import.meta.url), "utf8");
   assert.match(viewer, /file=\{source\.url\}/);
-  assert.match(viewer, /<pre className="whitespace-pre-wrap/);
+  assert.match(viewer, /Highlighted source evidence/);
+  assert.match(viewer, /getPdfHighlightRect/);
+  assert.match(viewer, /resolveTextHighlight/);
   assert.match(actions, /build\(sourceContext\.siAttachment\)/);
   assert.match(actions, /build\(sourceContext\.blAttachment\)/);
+  assert.match(actions, /locator: selectedValue\.source\?\.locator/);
   assert.match(actions, /onClose=\{\(\) => setSide\(null\)\}/);
   assert.doesNotMatch(actions, /comparison\[documentSide\].*filename/);
+});
+
+test("TXT locator highlights the exact line-relative character range", () => {
+  const text = "Shipper: ACME\r\nGross Weight: 21,577 KG\r\nPort: Klang";
+  const range = resolveTextHighlight(text, { kind: "txt", line_number: 2, start_char: 14, end_char: 23 }, null);
+  assert.ok(range);
+  assert.equal(range.lineNumber, 2);
+  assert.equal(text.slice(range.start, range.end), "21,577 KG");
+});
+
+test("TXT evidence fallback requires one exact unambiguous occurrence", () => {
+  const exact = resolveTextHighlight("Header\nGross Weight: 20,000 KG", null, "Gross Weight: 20,000 KG");
+  assert.equal(exact?.lineNumber, 2);
+  assert.equal(resolveTextHighlight("VALUE\nVALUE", null, "VALUE"), null);
+  assert.equal(resolveTextHighlight("No evidence", null, null), null);
+});
+
+test("PDF bbox scales from backend page coordinates without inventing a rectangle", () => {
+  const locator = { kind: "pdf", page: 2, bbox: { x0: 10, y0: 20, x1: 60, y1: 40 } };
+  assert.deepEqual(getPdfHighlightRect(locator, 100, 200), { left: 20, top: 40, width: 100, height: 40 });
+  assert.equal(getPdfHighlightRect({ ...locator, bbox: { x0: 10, y0: 20, x1: 10, y1: 40 } }, 100, 200), null);
 });

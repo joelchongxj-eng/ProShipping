@@ -49,6 +49,17 @@ test("Case Detail uses live review sections and comparison metadata without stal
   assert.match(comparison, /equivalence_reason/);
 });
 
+test("comparison rows use explicit backend status treatments and emphasize mismatch values", async () => {
+  const comparison = await readFile(new URL("../components/cases/comparison-result.tsx", import.meta.url), "utf8");
+  assert.match(comparison, /item\.status === "mismatch"/);
+  assert.match(comparison, /bg-red-50/);
+  assert.match(comparison, /bg-yellow-50/);
+  assert.match(comparison, /bg-gray-100/);
+  assert.match(comparison, /bg-green-50/);
+  assert.match(comparison, /emphasized=\{item\.status === "mismatch"\}/);
+  assert.match(comparison, /<StatusBadge status=\{item\.status\}/);
+});
+
 test("matched cases omit Human Review while all comparison results remain available", async () => {
   assert.equal(usesHumanReviewWorkflow("MATCH"), false);
   assert.equal(usesHumanReviewWorkflow("MISMATCH"), true);

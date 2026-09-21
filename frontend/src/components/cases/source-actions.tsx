@@ -3,9 +3,10 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import type { FieldComparison } from "@/types/verification";
-import type { EvidenceSourceContext, SourceDocument, SourceDocumentFormat } from "@/types/source";
+import type { EvidenceSourceContext, SourceDocument, SourceDocumentFormat, SourceHighlight } from "@/types/source";
 import { mock_document_sources } from "@/data/mock-document-sources";
 import { getCaseAttachmentUrl, getUploadAttachmentUrl } from "@/lib/api";
+import { formatSourceLocator } from "@/lib/source-locator";
 
 const SourceViewer = dynamic(() => import("./source-viewer"), { ssr: false, loading: () => <p role="status" className="text-sm">Opening document viewer...</p> });
 
@@ -50,6 +51,13 @@ export function SourceActions({ sourceContext, comparison }: { sourceContext: Ev
   const [side, setSide] = useState<"si" | "bl" | null>(null);
   const sources = getSources(sourceContext);
   const source = side ? sources?.[side] : null;
+  const selectedValue = side ? comparison[side] : null;
+  const highlight: SourceHighlight | null = selectedValue ? {
+    evidenceText: selectedValue.source?.evidence_text || selectedValue.evidence || null,
+    locator: selectedValue.source?.locator ?? null,
+    page: selectedValue.source?.page ?? selectedValue.page ?? null,
+    reference: formatSourceLocator(selectedValue),
+  } : null;
   return (
     <div className="mt-3">
       <div className="flex flex-wrap gap-3">
@@ -60,7 +68,7 @@ export function SourceActions({ sourceContext, comparison }: { sourceContext: Ev
           </div>
         ))}
       </div>
-      {side && source && <SourceViewer source={source} title={side === "si" ? "Shipping Instruction" : "Draft Bill of Lading"} initialPage={comparison[side]?.source?.page ?? comparison[side]?.page ?? null} onClose={() => setSide(null)} />}
+      {side && source && <SourceViewer source={source} title={side === "si" ? "Shipping Instruction" : "Draft Bill of Lading"} highlight={highlight} onClose={() => setSide(null)} />}
     </div>
   );
 }

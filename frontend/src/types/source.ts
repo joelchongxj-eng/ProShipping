@@ -1,4 +1,5 @@
 import type { UploadedFileReference } from "./upload";
+import type { SourceLocator } from "./verification";
 
 export type SourceDocumentFormat = "pdf" | "txt" | "docx" | "xlsx";
 
@@ -7,6 +8,13 @@ export interface SourceDocument {
   filename: string;
   format: SourceDocumentFormat;
   synthetic?: boolean;
+}
+
+export interface SourceHighlight {
+  evidenceText: string | null;
+  locator: SourceLocator | null;
+  page: number | null;
+  reference: string | null;
 }
 
 export type EvidenceSourceContext =
