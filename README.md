@@ -140,3 +140,14 @@ After processing, the system displays:
 5. Review uncertain values, confirm discrepancies, or correct extracted information where necessary.
 6. Rerun the comparison if corrections were made.
 7. Generate and edit a message draft if follow-up communication is required.
+
+## Tech Stack
+- Backend: Python 3.11+, FastAPI, Uvicorn, and Pydantic
+- HTTP integration: httpx for the external Inbox service and optional Groq API calls
+- Document processing: pypdf and Pillow, with support for TXT, PDF, DOCX, and XLSX attachments in AI mode
+- Testing: pytest and pytest-asyncio
+
+
+## System Architecture
+ProShipping’s FastAPI backend connects to an external Inbox service to retrieve emails and attachments. A case processor classifies each email and sends document comparison requests through the SI and draft BL verification pipeline. The pipeline extracts seven shipping fields, normalizes their values, compares them, and returns a case status with field-level evidence.
+By default, processing uses deterministic rules for TXT documents. Optional AI mode uses Groq for email classification and document extraction, including vision transcription for supported scanned PDFs. Python code validates the extracted evidence and decides the final comparison status. Cases are held in memory by the running API process.
