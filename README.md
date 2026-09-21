@@ -1835,5 +1835,16 @@ for Digital Shipping
 ```
 
 > **ProShipping's long-term opportunity is not simply to automate one document comparison, but to make verification a trusted part of increasingly digital shipping workflows.**
-````
+
+---
+
+### 📚 References
+
+1. **FIT Alliance**  
+   *2024 eBL Adoption Survey*  
+   [View the FIT Alliance 2024 eBL Survey](https://www.fit-alliance.org/post/press-release-fit-alliance-s-2024-ebl-survey-shows-steady-rise-of-electronic-bill-of-lading-adopti)
+
+2. **Digital Container Shipping Association (DCSA)**  
+   *100% eBL by 2030*  
+   [View DCSA's 100% eBL by 2030 commitment](https://dcsa.org/get-involved/100-percent-ebl)
 
