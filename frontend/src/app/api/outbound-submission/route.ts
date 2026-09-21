@@ -1,5 +1,5 @@
 import { getBackendUrl } from "@/lib/config";
-import { submissionActionPaths, submissionRemovePath, submissionResendPath } from "@/lib/submission-api-contract";
+import { submissionActionPaths, submissionDraftPath, submissionDraftPreviewPath, submissionDraftSendPath, submissionRemovePath, submissionResendPath } from "@/lib/submission-api-contract";
 import { forwardSubmissionRequest } from "@/lib/submission-proxy";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +22,23 @@ export async function POST(request: Request) {
     if (!dispatchId) return Response.json({ detail: "dispatch_id is required." }, { status: 422 });
     path = submissionResendPath(dispatchId);
   }
+  if (action === "create-draft") {
+    const channel = url.searchParams.get("channel");
+    if (channel !== "supervisor" && channel !== "sender") {
+      return Response.json({ detail: "A valid channel is required." }, { status: 422 });
+    }
+    path = submissionDraftPath(channel);
+  }
+  if (action === "preview-draft" || action === "send-draft") {
+    const draftId = url.searchParams.get("draft_id");
+    if (!draftId) return Response.json({ detail: "draft_id is required." }, { status: 422 });
+    path = action === "preview-draft" ? submissionDraftPreviewPath(draftId) : submissionDraftSendPath(draftId);
+  }
   if (!path) return Response.json({ detail: "Unknown submission action." }, { status: 404 });
-  return forwardSubmissionRequest(backendRequestUrl(path), "POST");
+  const body = request.headers.get("content-type")?.includes("application/json")
+    ? await request.text()
+    : undefined;
+  return forwardSubmissionRequest(backendRequestUrl(path), "POST", fetch, body);
 }
 
 export async function DELETE(request: Request) {

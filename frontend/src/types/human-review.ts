@@ -163,7 +163,7 @@ export interface EscalationAssignment {
   review_id: string;
   target_type: ReviewTargetType;
   target_id: string;
-  field: ShippingField;
+  field: ShippingField | null;
   si_value: string | null;
   bl_value: string | null;
   escalation_reason: string;

@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { countReviewReasons, filterCases, groupCases, groupReviewReasonCases, resolveCaseFilter } from "./dashboard-data.ts";
 
-function makeCase({ emailId, status, reviewReason = null }) {
+function makeCase({ emailId, status, reviewReason = null, category = "BL_COMPARISON" }) {
   return {
     email: { email_id: emailId, from: "operations@example.com", subject: "Verification", body: "", attachments: [] },
-    category: "BL_COMPARISON",
+    category,
     status,
     comparison: [],
     review_reason: reviewReason,
@@ -28,6 +28,19 @@ test("uses four authoritative top-level case statuses", () => {
   assert.deepEqual(Object.keys(groups), ["matched", "mismatch", "needs_review", "failed"]);
   assert.equal(groups.needs_review.length, 5);
   assert.equal(groups.failed.length, 1);
+});
+
+test("keeps every backend CaseRecord visible regardless of email category", () => {
+  const allCases = [
+    makeCase({ emailId: "comparison", status: "MISMATCH" }),
+    makeCase({ emailId: "invoice", status: "MATCH", category: "INVOICE_QUERY" }),
+    makeCase({ emailId: "general", status: "MATCH", category: "GENERAL" }),
+  ];
+
+  const groups = groupCases(allCases);
+
+  assert.deepEqual(groups.matched.map((item) => item.email.email_id), ["invoice", "general"]);
+  assert.equal(filterCases(allCases, { group: "all" }).length, 3);
 });
 
 test("counts only backend-supplied review reasons", () => {

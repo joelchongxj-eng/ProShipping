@@ -1,6 +1,6 @@
 import type { CaseStatus, VerificationCase } from "@/types/verification";
 import type { UploadComparisonResponse } from "@/types/upload";
-import type { SubmissionDispatch, SubmissionWorkflowResponse } from "@/types/outbound";
+import type { EmailDraft, SenderEmailDrafts, SubmissionDispatch, SubmissionWorkflowResponse } from "@/types/outbound";
 import type {
   CreateHumanReviewRequest,
   EscalationAssignmentHistory,
@@ -30,10 +30,13 @@ import {
   uploadHttpFallback,
 } from "./upload-api-contract";
 import { caseAttachmentProxyPath } from "./source-document";
-import { isSubmissionDispatch, isSubmissionWorkflowResponse } from "./submission-api-validation";
+import { isEmailDraft, isSenderEmailDrafts, isSubmissionDispatch, isSubmissionWorkflowResponse } from "./submission-api-validation";
 import { isProcessInboxResponse, processInboxProxyPath, type ProcessInboxResponse } from "./process-inbox";
 import {
   submissionProxyActionPath,
+  submissionProxyDraftPath,
+  submissionProxyDraftPreviewPath,
+  submissionProxyDraftSendPath,
   submissionProxyRemovePath,
   submissionProxyResendPath,
   submissionWorkflowPath,
@@ -327,6 +330,43 @@ export function sendSenderSubmission(): Promise<SubmissionDispatch> {
 
 export function updateSenderSubmission(): Promise<SubmissionDispatch> {
   return submissionAction("sender-update");
+}
+
+export async function createSupervisorEmailDraft(): Promise<EmailDraft> {
+  const data = await request(submissionProxyDraftPath("supervisor"), { method: "POST" }, 15000, true);
+  if (!isEmailDraft(data)) throw new ApiError("The backend returned an invalid email draft.", "invalid");
+  return data;
+}
+
+export async function createSenderEmailDrafts(): Promise<SenderEmailDrafts> {
+  const data = await request(submissionProxyDraftPath("sender"), { method: "POST" }, 15000, true);
+  if (!isSenderEmailDrafts(data)) throw new ApiError("The backend returned invalid sender email drafts.", "invalid");
+  return data;
+}
+
+export async function previewEmailDraft(
+  draftId: string,
+  payload: Pick<EmailDraft, "revision" | "recipient" | "subject" | "body">,
+): Promise<EmailDraft> {
+  const data = await request(submissionProxyDraftPreviewPath(draftId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }, 15000, true);
+  if (!isEmailDraft(data) || data.draft_id !== draftId) {
+    throw new ApiError("The backend returned an invalid email draft preview.", "invalid");
+  }
+  return data;
+}
+
+export async function sendEmailDraft(draftId: string, revision: number): Promise<SubmissionDispatch> {
+  const data = await request(submissionProxyDraftSendPath(draftId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ revision }),
+  }, 120000, true);
+  if (!isSubmissionDispatch(data)) throw new ApiError("The backend returned an invalid submission dispatch.", "invalid");
+  return data;
 }
 
 export async function resendSubmissionDispatch(dispatchId: string): Promise<SubmissionDispatch> {

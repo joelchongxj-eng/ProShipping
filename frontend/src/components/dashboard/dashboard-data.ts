@@ -27,12 +27,11 @@ export function getFieldCounts(item: VerificationCase) {
 }
 
 export function groupCases(cases: VerificationCase[]): Record<BoardGroup, VerificationCase[]> {
-  const comparisons = cases.filter((item) => item.category === "BL_COMPARISON");
   return {
-    matched: comparisons.filter((item) => item.status === "MATCH"),
-    mismatch: comparisons.filter((item) => item.status === "MISMATCH"),
-    needs_review: comparisons.filter((item) => item.status === "NEEDS_REVIEW"),
-    failed: comparisons.filter((item) => item.status === "FAILED"),
+    matched: cases.filter((item) => item.status === "MATCH"),
+    mismatch: cases.filter((item) => item.status === "MISMATCH"),
+    needs_review: cases.filter((item) => item.status === "NEEDS_REVIEW"),
+    failed: cases.filter((item) => item.status === "FAILED"),
   };
 }
 

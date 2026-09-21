@@ -17,7 +17,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
   const resolvedSearchParams = await searchParams;
   const filter = resolveCaseFilter(resolvedSearchParams);
   let allCases;
-  try { allCases = filter === "invalid" ? [] : (await loadCases()).filter((item) => item.category === "BL_COMPARISON"); } catch (error) {
+  try { allCases = filter === "invalid" ? [] : await loadCases(); } catch (error) {
     return <ApiErrorState error={error} retryHref="/cases" />;
   }
   const cases = filter === "invalid" ? [] : filterCases(allCases, filter);

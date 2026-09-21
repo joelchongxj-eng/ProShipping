@@ -241,10 +241,7 @@ class HumanReviewService:
                 )
             if not self._clean(request.escalation_reason):
                 raise HumanReviewError(422, "ESCALATE requires escalation_reason.")
-            if request.scope is not ReviewScope.FIELD or request.field is None:
-                raise HumanReviewError(422, "ESCALATE requires field scope.")
-            if request.side is not ReviewSide.BOTH:
-                raise HumanReviewError(422, "ESCALATE requires side BOTH.")
+            self._validate_issue_scope(target, request, "ESCALATE")
             if not self._clean(request.reviewer_action):
                 raise HumanReviewError(422, "ESCALATE requires reviewer_action.")
             if not self._clean(request.requested_decision):
@@ -273,10 +270,7 @@ class HumanReviewService:
                     409,
                     "REQUEST_INFORMATION is only valid for MISMATCH or NEEDS_REVIEW.",
                 )
-            if request.scope is not ReviewScope.FIELD or request.field is None:
-                raise HumanReviewError(422, "REQUEST_INFORMATION requires field scope.")
-            if request.side is not ReviewSide.BOTH:
-                raise HumanReviewError(422, "REQUEST_INFORMATION requires side BOTH.")
+            self._validate_issue_scope(target, request, "REQUEST_INFORMATION")
             if isinstance(target, UploadComparisonResponse):
                 raise HumanReviewError(
                     409,
@@ -322,6 +316,33 @@ class HumanReviewService:
                     422,
                     "Case-level UNREADABLE requires a note.",
                 )
+
+    @staticmethod
+    def _validate_issue_scope(
+        target: CaseRecord | UploadComparisonResponse,
+        request: CreateHumanReviewRequest,
+        action: str,
+    ) -> None:
+        if request.scope is ReviewScope.FIELD:
+            if request.field is None:
+                raise HumanReviewError(422, f"{action} requires field scope.")
+            if request.side is not ReviewSide.BOTH:
+                raise HumanReviewError(422, f"{action} requires side BOTH.")
+            return
+
+        if target.status is CaseStatus.MISMATCH:
+            raise HumanReviewError(422, f"{action} requires field scope.")
+        if not isinstance(target, CaseRecord) or target.status is not CaseStatus.NEEDS_REVIEW:
+            raise HumanReviewError(
+                422,
+                f"Case-level {action} is only valid for competition NEEDS_REVIEW cases.",
+            )
+        known_fields = {field.value for field in ShippingFieldName}
+        if any(item.field in known_fields for item in target.comparison):
+            raise HumanReviewError(
+                422,
+                f"Case-level {action} is not valid when a comparison field is available.",
+            )
 
     @staticmethod
     def _review_status(

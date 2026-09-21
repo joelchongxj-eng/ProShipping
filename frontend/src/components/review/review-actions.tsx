@@ -6,14 +6,13 @@ import { ApiError, createCaseReview } from "@/lib/api";
 import {
   buildCaseReviewRequest,
   getReviewActionAvailability,
+  getReviewActionGroups,
   reviewActionLabels,
   reviewActionSuccessMessages,
 } from "@/lib/human-review-actions";
 import { shippingFieldLabels } from "@/lib/human-review-display";
 import type { ReviewAction, ReviewSide } from "@/types/human-review";
 import type { ShippingField, VerificationCase } from "@/types/verification";
-
-const reviewActions: ReviewAction[] = ["CONFIRM", "CORRECT", "EQUIVALENT", "UNREADABLE", "ADD_NOTE", "RETRY", "ESCALATE", "REQUEST_INFORMATION"];
 
 function ActionButton({ action, active, disabled, tooltip, onClick }: {
   action: ReviewAction;
@@ -31,7 +30,7 @@ function ActionButton({ action, active, disabled, tooltip, onClick }: {
         aria-pressed={active}
         aria-describedby={tooltipId}
         onClick={onClick}
-        className={`min-h-9 rounded-md border px-3 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${active ? "border-blue-900 bg-blue-950 text-white shadow-sm" : "border-slate-300 bg-white text-slate-700 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-950"}`}
+        className={`min-h-10 rounded-md border px-3 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${active ? "border-blue-900 bg-blue-950 text-white shadow-sm" : "border-slate-300 bg-white text-slate-700 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-950"}`}
       >
         {reviewActionLabels[action]}
       </button>
@@ -56,12 +55,14 @@ export function ReviewActions({ item, selectedField }: { item: VerificationCase;
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
 
   const selectedComparison = item.comparison.find((entry) => entry.field === selectedField);
+  const actionGroups = getReviewActionGroups(item, selectedField);
+  const visibleActions = [...actionGroups.primary, ...actionGroups.secondary];
   const actionAvailability = Object.fromEntries(
-    reviewActions.map((candidate) => [candidate, getReviewActionAvailability(item, candidate, selectedField)]),
-  ) as Record<ReviewAction, ReturnType<typeof getReviewActionAvailability>>;
+    visibleActions.map((candidate) => [candidate, getReviewActionAvailability(item, candidate, selectedField)]),
+  ) as Partial<Record<ReviewAction, ReturnType<typeof getReviewActionAvailability>>>;
 
   function chooseAction(next: ReviewAction) {
-    if (!actionAvailability[next].enabled) return;
+    if (!actionAvailability[next]?.enabled) return;
     setAction(next);
     setFeedback(null);
     if ((next === "CORRECT" || next === "UNREADABLE") && side === "BL" && !item.bl_attachment && item.si_attachment) setSide("SI");
@@ -69,7 +70,7 @@ export function ReviewActions({ item, selectedField }: { item: VerificationCase;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!action || submitting || !actionAvailability[action].enabled) return;
+    if (!action || submitting || !actionAvailability[action]?.enabled) return;
     setSubmitting(true);
     setFeedback(null);
     try {
@@ -95,23 +96,33 @@ export function ReviewActions({ item, selectedField }: { item: VerificationCase;
 
   return (
     <div>
-      <div className="space-y-3">
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Review decision</p>
-          <div className="flex flex-wrap gap-2" aria-label="Review decision actions">
-            {reviewActions.slice(0, 5).map((candidate) => <ActionButton key={candidate} action={candidate} active={action === candidate} disabled={!actionAvailability[candidate].enabled || submitting} tooltip={actionAvailability[candidate].tooltip} onClick={() => chooseAction(candidate)} />)}
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <section aria-labelledby="primary-review-actions-label">
+          <p id="primary-review-actions-label" className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {item.status === "MISMATCH" ? "Review decision" : "Recommended action"}
+          </p>
+          <div className="flex flex-wrap items-start gap-2">
+            {actionGroups.primary.map((candidate) => {
+              const availability = actionAvailability[candidate];
+              return availability ? <ActionButton key={candidate} action={candidate} active={action === candidate} disabled={!availability.enabled || submitting} tooltip={availability.tooltip} onClick={() => chooseAction(candidate)} /> : null;
+            })}
           </div>
-        </div>
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Additional actions</p>
-          <div className="flex flex-wrap gap-2" aria-label="Processing and escalation actions">
-            {reviewActions.slice(5).map((candidate) => <ActionButton key={candidate} action={candidate} active={action === candidate} disabled={!actionAvailability[candidate].enabled || submitting} tooltip={actionAvailability[candidate].tooltip} onClick={() => chooseAction(candidate)} />)}
-          </div>
-        </div>
+        </section>
+        {actionGroups.secondary.length > 0 && (
+          <section aria-labelledby="additional-review-actions-label" className="mt-3 border-t border-slate-200 pt-3">
+            <p id="additional-review-actions-label" className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Additional actions</p>
+            <div className="flex flex-wrap items-start gap-2">
+              {actionGroups.secondary.map((candidate) => {
+                const availability = actionAvailability[candidate];
+                return availability ? <ActionButton key={candidate} action={candidate} active={action === candidate} disabled={!availability.enabled || submitting} tooltip={availability.tooltip} onClick={() => chooseAction(candidate)} /> : null;
+              })}
+            </div>
+          </section>
+        )}
       </div>
 
       {action && (
-        <form onSubmit={submit} className="mt-4 space-y-3 rounded-md border border-blue-200 bg-white p-3 shadow-sm">
+        <form onSubmit={submit} aria-busy={submitting} className="mt-4 space-y-3 rounded-md border border-blue-200 bg-white p-3 shadow-sm">
           {["CORRECT", "EQUIVALENT", "UNREADABLE", "ESCALATE", "REQUEST_INFORMATION"].includes(action) && selectedField && <div className="text-xs text-slate-600"><span className="font-medium text-slate-800">Selected field:</span> {shippingFieldLabels[selectedField]}</div>}
           {(action === "CORRECT" || action === "UNREADABLE") && (
             <label className="block text-xs font-medium text-slate-700">Document side
@@ -128,7 +139,7 @@ export function ReviewActions({ item, selectedField }: { item: VerificationCase;
             <label className="block text-xs font-medium text-slate-700">Requested supervisor decision<textarea required value={requestedDecision} onChange={(event) => setRequestedDecision(event.target.value)} className={`mt-1 min-h-20 py-2 ${control}`} /></label>
           </>}
           {action === "REQUEST_INFORMATION" && <label className="block text-xs font-medium text-slate-700">Information or clarification required<textarea required value={requestReason} onChange={(event) => setRequestReason(event.target.value)} className={`mt-1 min-h-20 py-2 ${control}`} /></label>}
-          {(action === "ADD_NOTE" || ["CORRECT", "EQUIVALENT", "UNREADABLE", "ESCALATE", "REQUEST_INFORMATION"].includes(action)) && <label className="block text-xs font-medium text-slate-700">Note{action !== "ADD_NOTE" && <span className="font-normal text-slate-500"> (optional)</span>}<textarea required={action === "ADD_NOTE"} value={note} onChange={(event) => setNote(event.target.value)} className={`mt-1 min-h-20 py-2 ${control}`} /></label>}
+          {(action === "ADD_NOTE" || ["CORRECT", "EQUIVALENT", "UNREADABLE", "ESCALATE", "REQUEST_INFORMATION"].includes(action)) && <label className="block text-xs font-medium text-slate-700">Note{action !== "ADD_NOTE" && !(action === "UNREADABLE" && selectedField === null) && <span className="font-normal text-slate-500"> (optional)</span>}<textarea required={action === "ADD_NOTE" || (action === "UNREADABLE" && selectedField === null)} value={note} onChange={(event) => setNote(event.target.value)} className={`mt-1 min-h-20 py-2 ${control}`} /></label>}
           {action === "RETRY" && <p className="text-xs leading-5 text-slate-600">Retry processing this case? The backend immediately reruns processing and stores the outcome as a separate retry attempt. The original automated result remains unchanged.</p>}
           {action === "EQUIVALENT" && <p className="text-xs leading-5 text-slate-600">The backend records the selected mismatch as equivalent for this case. The automated field result remains unchanged.</p>}
           {action === "ESCALATE" && <p className="text-xs leading-5 text-slate-600">Submitting records the escalation and adds it to Supervisor Escalations. It does not send an email immediately.</p>}

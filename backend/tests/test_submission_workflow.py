@@ -5,7 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main
-from app.models import CaseRecord, EmailCategory, EmailRecord
+from app.email_delivery import EmailDeliveryResult, EmailDeliveryStatus
+from app.models import CaseRecord, CaseStatus, EmailCategory, EmailRecord, ReviewReason
 from app.services.document_pair import compare_document_pair
 from app.submission.models import SubmissionChannel
 
@@ -26,12 +27,25 @@ class RecordingSender:
         self.recipient = recipient
         self.messages = messages
 
-    async def send(self, subject: str, body: str) -> None:
+    async def send(
+        self,
+        subject: str,
+        body: str,
+        *,
+        idempotency_key: str,
+    ) -> EmailDeliveryResult:
         self.messages.append((self.recipient, subject, body))
+        return EmailDeliveryResult(status=EmailDeliveryStatus.SENT)
 
 
 class FailingSender(RecordingSender):
-    async def send(self, subject: str, body: str) -> None:
+    async def send(
+        self,
+        subject: str,
+        body: str,
+        *,
+        idempotency_key: str,
+    ) -> EmailDeliveryResult:
         raise RuntimeError("secret SMTP detail")
 
 
@@ -96,6 +110,7 @@ def request_information(client: TestClient, email_id: str):
 
 @pytest.fixture(autouse=True)
 def clear_workflow_state(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("OUTBOUND_EMAIL_AUTH_TOKEN", raising=False)
     main.cases.clear()
     main.human_review_store.clear()
     main.escalation_store.clear()
@@ -123,6 +138,29 @@ def clear_workflow_state(monkeypatch: pytest.MonkeyPatch):
         workflow_service.sender_factory = original_factory
         workflow_service.supervisor_email_lookup = original_lookup
         workflow_service.demo_email_recipient_lookup = original_demo_lookup
+
+
+class ResultSender:
+    def __init__(
+        self,
+        recipient: str,
+        results: list[EmailDeliveryResult],
+        attempts: list[tuple[str, str]],
+    ) -> None:
+        self.recipient = recipient
+        self.results = results
+        self.attempts = attempts
+
+    async def send(
+        self,
+        subject: str,
+        body: str,
+        *,
+        idempotency_key: str,
+    ) -> EmailDeliveryResult:
+        del subject, body
+        self.attempts.append((self.recipient, idempotency_key))
+        return self.results.pop(0)
 
 
 def test_escalate_queues_supervisor_item_without_sending(clear_workflow_state) -> None:
@@ -206,7 +244,38 @@ def test_supervisor_submit_sends_one_batch_and_stores_snapshot(clear_workflow_st
     assert recipient == "supervisor@example.com"
     assert subject == "Supervisor Shipping Document Escalations"
     assert "email_101" in body and "email_205" in body
+    assert "Field: gross_weight_kg" in body
+    assert "Case-level issue" not in body
     assert set(sent.json()["successful_snapshot_target_ids"]) == {"email_101", "email_205"}
+
+
+def test_case_level_submission_email_uses_clear_issue_label(clear_workflow_state) -> None:
+    case = seed_case("email_case_level")
+    main.cases["email_case_level"] = case.model_copy(
+        update={
+            "status": CaseStatus.NEEDS_REVIEW,
+            "comparison": [],
+            "review_reason": ReviewReason.MISSING_ATTACHMENT,
+        }
+    )
+    client = TestClient(main.app)
+    created = client.post(
+        "/api/cases/email_case_level/reviews",
+        json={
+            "scope": "CASE",
+            "action": "REQUEST_INFORMATION",
+            "request_reason": "Please attach the missing document.",
+        },
+    )
+
+    sent = client.post("/api/submission/sender/send")
+
+    assert created.status_code == 201
+    assert sent.status_code == 200
+    assert len(clear_workflow_state) == 1
+    recipient, _subject, body = clear_workflow_state[0]
+    assert recipient == "shipping@example.com"
+    assert "Field: Case-level issue" in body
 
 
 def test_supervisor_update_sends_only_new_active_cases(clear_workflow_state) -> None:
@@ -516,3 +585,354 @@ def test_workflow_get_is_read_only_and_exposes_no_secrets(monkeypatch) -> None:
     assert secret_marker not in serialized
     assert "never-expose-groq" not in serialized
     assert "Private email body" not in serialized
+
+
+def test_dispatch_exposes_provider_message_id_without_provider_secret() -> None:
+    seed_case("email_provider_id")
+    client = TestClient(main.app)
+    escalate(client, "email_provider_id")
+    attempts: list[tuple[str, str]] = []
+    main.submission_workflow_service.sender_factory = lambda recipient: ResultSender(
+        recipient,
+        [
+            EmailDeliveryResult(
+                status=EmailDeliveryStatus.SENT,
+                provider_message_id="provider-message-123",
+            )
+        ],
+        attempts,
+    )
+
+    response = client.post("/api/submission/supervisor/submit")
+
+    assert response.status_code == 200
+    outcome = response.json()["outcomes"][0]
+    assert outcome["provider_message_id"] == "provider-message-123"
+    assert "provider-secret" not in str(response.json())
+
+
+def test_sender_resend_freezes_demo_delivery_recipient_and_idempotency_key() -> None:
+    seed_case("email_frozen_resend", sender="original-sender@example.com")
+    client = TestClient(main.app)
+    request_information(client, "email_frozen_resend")
+    attempts: list[tuple[str, str]] = []
+    results = [
+        EmailDeliveryResult(
+            status=EmailDeliveryStatus.FAILED,
+            error_reason="Email provider request timed out.",
+        ),
+        EmailDeliveryResult(status=EmailDeliveryStatus.SENT),
+    ]
+    main.submission_workflow_service.demo_email_recipient_lookup = (
+        lambda: "first-demo@example.com"
+    )
+    main.submission_workflow_service.sender_factory = lambda recipient: ResultSender(
+        recipient,
+        results,
+        attempts,
+    )
+
+    failed = client.post("/api/submission/sender/send")
+    main.submission_workflow_service.demo_email_recipient_lookup = (
+        lambda: "changed-demo@example.com"
+    )
+    resent = client.post(
+        f"/api/submission/dispatches/{failed.json()['dispatch_id']}/resend"
+    )
+
+    assert failed.status_code == 200
+    assert resent.status_code == 200
+    assert [recipient for recipient, _key in attempts] == [
+        "first-demo@example.com",
+        "first-demo@example.com",
+    ]
+    assert attempts[0][1] == attempts[1][1]
+    assert resent.json()["outcomes"][0]["recipient"] == "first-demo@example.com"
+
+
+def test_configured_authorization_token_protects_real_send_endpoints(
+    monkeypatch,
+) -> None:
+    seed_case("email_authorized")
+    client = TestClient(main.app)
+    escalate(client, "email_authorized")
+    monkeypatch.setenv("OUTBOUND_EMAIL_AUTH_TOKEN", "server-only-secret")
+
+    missing = client.post("/api/submission/supervisor/submit")
+    wrong = client.post(
+        "/api/submission/supervisor/submit",
+        headers={"X-Outbound-Email-Token": "wrong-secret"},
+    )
+    allowed = client.post(
+        "/api/submission/supervisor/submit",
+        headers={"X-Outbound-Email-Token": "server-only-secret"},
+    )
+
+    assert missing.status_code == 401
+    assert wrong.status_code == 401
+    assert "server-only-secret" not in str(missing.json())
+    assert "server-only-secret" not in str(wrong.json())
+    assert allowed.status_code == 200
+
+
+def test_supervisor_draft_is_server_generated_without_sending(clear_workflow_state) -> None:
+    seed_case("email_draft")
+    client = TestClient(main.app)
+    escalate(client, "email_draft")
+
+    response = client.post("/api/submission/drafts/supervisor")
+
+    assert response.status_code == 201
+    assert clear_workflow_state == []
+    assert response.json() == {
+        "draft_id": response.json()["draft_id"],
+        "revision": 1,
+        "channel": "SUPERVISOR",
+        "dispatch_type": "INITIAL",
+        "route_recipient": "supervisor@example.com",
+        "recipient": "supervisor@example.com",
+        "subject": "Supervisor Shipping Document Escalations",
+        "body": response.json()["body"],
+        "included_items": [
+            {
+                "target_type": "COMPETITION_CASE",
+                "target_id": "email_draft",
+                "source_review_id": response.json()["included_items"][0]["source_review_id"],
+            }
+        ],
+        "created_at": response.json()["created_at"],
+        "updated_at": response.json()["updated_at"],
+    }
+    assert "email_draft" in response.json()["body"]
+
+
+def test_preview_persists_edits_and_send_uses_exact_preview(clear_workflow_state) -> None:
+    seed_case("email_preview")
+    client = TestClient(main.app)
+    escalate(client, "email_preview")
+    draft = client.post("/api/submission/drafts/supervisor").json()
+
+    preview = client.post(
+        f"/api/submission/drafts/{draft['draft_id']}/preview",
+        json={
+            "revision": 1,
+            "recipient": "supervisor@example.com",
+            "subject": "Reviewed escalation",
+            "body": "Please review this exact message.\nSecond line.",
+        },
+    )
+    sent = client.post(
+        f"/api/submission/drafts/{draft['draft_id']}/send",
+        json={"revision": 2},
+    )
+
+    assert preview.status_code == 200
+    assert preview.json()["revision"] == 2
+    assert clear_workflow_state == [
+        (
+            "supervisor@example.com",
+            "Reviewed escalation",
+            "Please review this exact message.\nSecond line.",
+        )
+    ]
+    assert sent.status_code == 200
+    snapshot = sent.json()["message_snapshots"][0]
+    assert snapshot["route_recipient"] == "supervisor@example.com"
+    assert snapshot["recipient"] == "supervisor@example.com"
+    assert snapshot["subject"] == "Reviewed escalation"
+    assert snapshot["body"] == "Please review this exact message.\nSecond line."
+    assert snapshot["included_target_ids"] == ["email_preview"]
+    assert snapshot["status"] == "SENT"
+
+
+def test_sender_drafts_are_grouped_without_cross_sender_data(clear_workflow_state) -> None:
+    client = TestClient(main.app)
+    for email_id, sender in (("email_group_a", "a@example.com"), ("email_group_b", "b@example.com")):
+        seed_case(email_id, sender)
+        request_information(client, email_id)
+
+    response = client.post("/api/submission/drafts/sender")
+
+    assert response.status_code == 201
+    assert clear_workflow_state == []
+    drafts = response.json()["drafts"]
+    assert [draft["route_recipient"] for draft in drafts] == ["a@example.com", "b@example.com"]
+    assert [item["target_id"] for item in drafts[0]["included_items"]] == ["email_group_a"]
+    assert [item["target_id"] for item in drafts[1]["included_items"]] == ["email_group_b"]
+    assert "email_group_b" not in drafts[0]["body"]
+    assert "email_group_a" not in drafts[1]["body"]
+
+
+def test_sender_recipient_is_locked_in_production(monkeypatch, clear_workflow_state) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    seed_case("email_locked", "original@example.com")
+    client = TestClient(main.app)
+    request_information(client, "email_locked")
+    draft = client.post("/api/submission/drafts/sender").json()["drafts"][0]
+
+    response = client.post(
+        f"/api/submission/drafts/{draft['draft_id']}/preview",
+        json={
+            "revision": 1,
+            "recipient": "attacker@example.com",
+            "subject": draft["subject"],
+            "body": draft["body"],
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Sender follow-up recipient cannot be changed."}
+
+
+def test_demo_sender_draft_only_allows_controlled_recipient(monkeypatch, clear_workflow_state) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    seed_case("email_demo_draft", "original@example.com")
+    client = TestClient(main.app)
+    request_information(client, "email_demo_draft")
+    main.submission_workflow_service.demo_email_recipient_lookup = lambda: "demo@example.com"
+    draft = client.post("/api/submission/drafts/sender").json()["drafts"][0]
+
+    rejected = client.post(
+        f"/api/submission/drafts/{draft['draft_id']}/preview",
+        json={"revision": 1, "recipient": "original@example.com", "subject": draft["subject"], "body": draft["body"]},
+    )
+    accepted = client.post(
+        f"/api/submission/drafts/{draft['draft_id']}/preview",
+        json={"revision": 1, "recipient": "demo@example.com", "subject": draft["subject"], "body": draft["body"]},
+    )
+
+    assert draft["route_recipient"] == "original@example.com"
+    assert draft["recipient"] == "demo@example.com"
+    assert rejected.status_code == 403
+    assert accepted.status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("changes", "expected_status"),
+    (
+        ({"recipient": "not-an-email"}, 422),
+        ({"recipient": "invalid@example..com"}, 422),
+        ({"subject": "bad\r\nBcc: attacker@example.com"}, 422),
+        ({"subject": "x" * 201}, 422),
+        ({"body": ""}, 422),
+        ({"body": "x" * 50_001}, 422),
+    ),
+)
+def test_draft_preview_rejects_invalid_message_fields(changes, expected_status) -> None:
+    seed_case("email_invalid_draft")
+    client = TestClient(main.app)
+    escalate(client, "email_invalid_draft")
+    draft = client.post("/api/submission/drafts/supervisor").json()
+    payload = {
+        "revision": 1,
+        "recipient": draft["recipient"],
+        "subject": draft["subject"],
+        "body": draft["body"],
+        **changes,
+    }
+
+    response = client.post(f"/api/submission/drafts/{draft['draft_id']}/preview", json=payload)
+
+    assert response.status_code == expected_status
+
+
+def test_draft_send_rejects_stale_revision_and_changed_queue(clear_workflow_state) -> None:
+    seed_case("email_stale")
+    client = TestClient(main.app)
+    escalate(client, "email_stale")
+    draft = client.post("/api/submission/drafts/supervisor").json()
+    preview = client.post(
+        f"/api/submission/drafts/{draft['draft_id']}/preview",
+        json={"revision": 1, "recipient": draft["recipient"], "subject": draft["subject"], "body": draft["body"]},
+    ).json()
+
+    stale_revision = client.post(
+        f"/api/submission/drafts/{draft['draft_id']}/send",
+        json={"revision": 1},
+    )
+    client.delete("/api/submission-workflow/supervisor/email_stale")
+    changed_queue = client.post(
+        f"/api/submission/drafts/{draft['draft_id']}/send",
+        json={"revision": preview["revision"]},
+    )
+
+    assert stale_revision.status_code == 409
+    assert changed_queue.status_code == 409
+    assert clear_workflow_state == []
+
+
+def test_draft_mutations_use_existing_server_authorization(monkeypatch) -> None:
+    seed_case("email_draft_auth")
+    client = TestClient(main.app)
+    escalate(client, "email_draft_auth")
+    monkeypatch.setenv("OUTBOUND_EMAIL_AUTH_TOKEN", "server-only-secret")
+
+    missing = client.post("/api/submission/drafts/supervisor")
+    allowed = client.post(
+        "/api/submission/drafts/supervisor",
+        headers={"X-Outbound-Email-Token": "server-only-secret"},
+    )
+
+    assert missing.status_code == 401
+    assert allowed.status_code == 201
+    assert "server-only-secret" not in str(missing.json())
+
+
+def test_failed_draft_is_consumed_and_resend_replays_immutable_message(clear_workflow_state) -> None:
+    seed_case("email_failed_draft", "sender@example.com")
+    client = TestClient(main.app)
+    request_information(client, "email_failed_draft")
+    attempts: list[tuple[str, str]] = []
+    results = [
+        EmailDeliveryResult(status=EmailDeliveryStatus.FAILED, error_reason="Provider unavailable."),
+        EmailDeliveryResult(status=EmailDeliveryStatus.SENT),
+    ]
+    main.submission_workflow_service.sender_factory = lambda recipient: ResultSender(recipient, results, attempts)
+    draft = client.post("/api/submission/drafts/sender").json()["drafts"][0]
+    preview = client.post(
+        f"/api/submission/drafts/{draft['draft_id']}/preview",
+        json={
+            "revision": 1,
+            "recipient": draft["recipient"],
+            "subject": "Edited once",
+            "body": "Immutable failed body",
+        },
+    ).json()
+    failed = client.post(
+        f"/api/submission/drafts/{draft['draft_id']}/send",
+        json={"revision": preview["revision"]},
+    )
+
+    second_send = client.post(
+        f"/api/submission/drafts/{draft['draft_id']}/send",
+        json={"revision": preview["revision"]},
+    )
+    blocked_compose = client.post("/api/submission/drafts/sender")
+    resent = client.post(f"/api/submission/dispatches/{failed.json()['dispatch_id']}/resend")
+
+    assert failed.json()["message_snapshots"][0]["body"] == "Immutable failed body"
+    assert second_send.status_code == 409
+    assert blocked_compose.status_code == 409
+    assert attempts[0][1] == attempts[1][1]
+    assert resent.json()["message_snapshots"][0]["body"] == "Immutable failed body"
+    assert resent.json()["dispatch_type"] == "RESEND"
+
+
+def test_supervisor_recipient_edit_requires_allowlist(monkeypatch) -> None:
+    seed_case("email_supervisor_recipient")
+    client = TestClient(main.app)
+    escalate(client, "email_supervisor_recipient")
+    draft = client.post("/api/submission/drafts/supervisor").json()
+    payload = {
+        "revision": 1,
+        "recipient": "backup@example.com",
+        "subject": draft["subject"],
+        "body": draft["body"],
+    }
+
+    rejected = client.post(f"/api/submission/drafts/{draft['draft_id']}/preview", json=payload)
+    monkeypatch.setenv("SUPERVISOR_ALLOWED_RECIPIENTS", "other@example.com, backup@example.com")
+    accepted = client.post(f"/api/submission/drafts/{draft['draft_id']}/preview", json=payload)
+
+    assert rejected.status_code == 403
+    assert accepted.status_code == 200

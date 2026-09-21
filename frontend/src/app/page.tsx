@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Page() {
   let cases;
-  try { cases = (await loadCases()).filter((item) => item.category === "BL_COMPARISON"); } catch (error) {
+  try { cases = await loadCases(); } catch (error) {
     return <ApiErrorState error={error} retryHref="/" />;
   }
   const groups = groupCases(cases);

@@ -10,6 +10,7 @@ from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.clients.inbox import InboxClient
+from app.email_delivery import validate_email_delivery_configuration
 from app.models import (
     CaseRecord,
     FieldStatus,
@@ -26,6 +27,7 @@ from app.reviews.service import HumanReviewService
 from app.reviews.store import HumanReviewStore
 from app.services.ai_service import AIService
 from app.services.document_pair import compare_document_pair_with_ai_fallback
+from app.services.detailed_csv import build_detailed_csv
 from app.services.processor import CaseProcessor
 from app.services.submission import build_submission_entry
 from app.services.upload_store import UploadComparisonStore
@@ -35,6 +37,7 @@ from app.submission.store import SubmissionWorkflowStore
 
 
 load_dotenv()
+validate_email_delivery_configuration()
 
 
 app = FastAPI(title="ProShipping API", version="0.1.0")
@@ -318,6 +321,20 @@ async def list_cases(status: str | None = None) -> list[CaseRecord]:
     if status:
         result = [case for case in result if case.status.value == status.upper()]
     return result
+
+
+@app.get("/api/export/detailed-csv")
+async def export_detailed_csv() -> Response:
+    return Response(
+        content=build_detailed_csv(cases.values()),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": _content_disposition(
+                "proshipping_detailed_results.csv",
+                "attachment",
+            ),
+        },
+    )
 
 
 @app.get("/api/cases/{email_id}", response_model=CaseRecord)

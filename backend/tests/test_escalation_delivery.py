@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from uuid import UUID
 
 import app.main as main
+from app.email_delivery import EmailDeliveryStatus, NotConfiguredEmailDelivery
 from app.models import CaseRecord, EmailCategory, EmailRecord
 from app.reviews.escalation_service import SMTPEmailSender
 from app.services.document_pair import compare_document_pair
@@ -389,7 +390,8 @@ def test_smtp_sender_uses_starttls_authentication_and_configured_from_address(
     )
 
 
-def test_smtp_sender_is_not_configured_when_authentication_is_incomplete(
+@pytest.mark.asyncio
+async def test_smtp_sender_returns_normalized_not_configured_when_authentication_is_incomplete(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SMTP_HOST", "smtp.gmail.com")
@@ -401,7 +403,12 @@ def test_smtp_sender_is_not_configured_when_authentication_is_incomplete(
         "controlled-demo@example.com"
     )
 
-    assert sender is None
+    assert isinstance(sender, NotConfiguredEmailDelivery)
+    result = await sender.send("Subject", "Body", idempotency_key="delivery-1")
+    assert result.status is EmailDeliveryStatus.NOT_CONFIGURED
+    assert result.error_reason == (
+        "Email delivery is not configured. Missing configuration: SMTP_PASSWORD."
+    )
     assert SMTPEmailSender.missing_configuration_keys("controlled-demo@example.com") == [
         "SMTP_PASSWORD"
     ]

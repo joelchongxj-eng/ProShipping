@@ -31,3 +31,8 @@ test("API helpers use current queue parameters, upload review routes, and the ca
   }
   assert.match(source, /request\(`\/api\/case-reviews\/\$\{encodeURIComponent\(emailId\)\}`/);
 });
+
+test("accepts case-level escalation assignments with a null field", async () => {
+  const validator = await readFile(new URL("./human-review-api-validation.ts", import.meta.url), "utf8");
+  assert.match(validator, /enumOrNull\(value\.field, shippingFields\)/);
+});

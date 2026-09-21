@@ -132,8 +132,6 @@ class EscalationService:
         review: HumanReviewRecord,
         request: CreateHumanReviewRequest,
     ) -> EscalationAssignment:
-        if review.field is None:
-            raise EscalationError(422, "Escalation assignment requires a field.")
         assignment = self.store.create(
             EscalationAssignment(
                 assignment_id=uuid4(),
@@ -176,8 +174,9 @@ class EscalationService:
                 error_reason="Supervisor email delivery is not configured.",
             )
         try:
+            issue_label = assignment.field.value if assignment.field is not None else "Case-level issue"
             await sender.send(
-                f"Shipping document escalation: {assignment.field.value}",
+                f"Shipping document escalation: {issue_label}",
                 self._email_body(assignment),
             )
         except Exception:
@@ -197,10 +196,11 @@ class EscalationService:
 
     @staticmethod
     def _email_body(assignment: EscalationAssignment) -> str:
+        issue_label = assignment.field.value if assignment.field is not None else "Case-level issue"
         return "\n".join(
             (
                 f"Target: {assignment.target_id}",
-                f"Field: {assignment.field.value}",
+                f"Field: {issue_label}",
                 f"SI value: {assignment.si_value or '[missing]'}",
                 f"BL value: {assignment.bl_value or '[missing]'}",
                 f"Reason: {assignment.escalation_reason}",

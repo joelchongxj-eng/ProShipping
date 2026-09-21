@@ -3,6 +3,7 @@ from threading import RLock
 from uuid import UUID
 
 from app.submission.models import (
+    EmailDraft,
     SubmissionChannel,
     SubmissionDispatch,
     SubmissionItem,
@@ -18,11 +19,15 @@ class SubmissionWorkflowStore:
         self._dispatches: list[SubmissionDispatch] = []
         self._dispatch_by_id: dict[UUID, SubmissionDispatch] = {}
         self._messages: dict[UUID, dict[str, tuple[str, str]]] = {}
+        self._delivery_recipients: dict[UUID, dict[str, str | None]] = {}
+        self._idempotency_keys: dict[UUID, dict[str, str]] = {}
         self._intended_snapshots: dict[UUID, dict[str, list[SubmissionItem]]] = {}
         self._successful_snapshots: dict[
             tuple[SubmissionChannel, str], list[SubmissionItem]
         ] = {}
         self._successful_at: dict[tuple[SubmissionChannel, str], datetime] = {}
+        self._drafts: dict[UUID, EmailDraft] = {}
+        self._consumed_drafts: set[UUID] = set()
         self._lock = RLock()
 
     def upsert(self, channel: SubmissionChannel, item: SubmissionItem) -> SubmissionItem:
@@ -69,6 +74,8 @@ class SubmissionWorkflowStore:
         dispatch: SubmissionDispatch,
         *,
         messages: dict[str, tuple[str, str]],
+        delivery_recipients: dict[str, str | None],
+        idempotency_keys: dict[str, str],
         intended_snapshots: dict[str, list[SubmissionItem]],
     ) -> SubmissionDispatch:
         with self._lock:
@@ -76,6 +83,8 @@ class SubmissionWorkflowStore:
             self._dispatches.append(stored)
             self._dispatch_by_id[stored.dispatch_id] = stored
             self._messages[stored.dispatch_id] = dict(messages)
+            self._delivery_recipients[stored.dispatch_id] = dict(delivery_recipients)
+            self._idempotency_keys[stored.dispatch_id] = dict(idempotency_keys)
             self._intended_snapshots[stored.dispatch_id] = {
                 recipient: [item.model_copy(deep=True) for item in items]
                 for recipient, items in intended_snapshots.items()
@@ -98,6 +107,17 @@ class SubmissionWorkflowStore:
     def dispatch_messages(self, dispatch_id: UUID) -> dict[str, tuple[str, str]]:
         with self._lock:
             return dict(self._messages.get(dispatch_id, {}))
+
+    def dispatch_delivery_recipients(
+        self,
+        dispatch_id: UUID,
+    ) -> dict[str, str | None]:
+        with self._lock:
+            return dict(self._delivery_recipients.get(dispatch_id, {}))
+
+    def dispatch_idempotency_keys(self, dispatch_id: UUID) -> dict[str, str]:
+        with self._lock:
+            return dict(self._idempotency_keys.get(dispatch_id, {}))
 
     def intended_snapshots(self, dispatch_id: UUID) -> dict[str, list[SubmissionItem]]:
         with self._lock:
@@ -134,6 +154,33 @@ class SubmissionWorkflowStore:
                 if item_channel is channel
             ]
 
+    def add_draft(self, draft: EmailDraft) -> EmailDraft:
+        with self._lock:
+            stored = draft.model_copy(deep=True)
+            self._drafts[stored.draft_id] = stored
+            return stored.model_copy(deep=True)
+
+    def draft(self, draft_id: UUID) -> EmailDraft | None:
+        with self._lock:
+            value = self._drafts.get(draft_id)
+            return value.model_copy(deep=True) if value else None
+
+    def update_draft(self, draft: EmailDraft) -> EmailDraft:
+        with self._lock:
+            if draft.draft_id not in self._drafts:
+                raise KeyError(draft.draft_id)
+            stored = draft.model_copy(deep=True)
+            self._drafts[stored.draft_id] = stored
+            return stored.model_copy(deep=True)
+
+    def consume_draft(self, draft_id: UUID) -> None:
+        with self._lock:
+            self._consumed_drafts.add(draft_id)
+
+    def draft_consumed(self, draft_id: UUID) -> bool:
+        with self._lock:
+            return draft_id in self._consumed_drafts
+
     def clear(self) -> None:
         with self._lock:
             self._item_events.clear()
@@ -141,6 +188,10 @@ class SubmissionWorkflowStore:
             self._dispatches.clear()
             self._dispatch_by_id.clear()
             self._messages.clear()
+            self._delivery_recipients.clear()
+            self._idempotency_keys.clear()
             self._intended_snapshots.clear()
             self._successful_snapshots.clear()
             self._successful_at.clear()
+            self._drafts.clear()
+            self._consumed_drafts.clear()

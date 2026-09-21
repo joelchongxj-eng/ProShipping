@@ -52,7 +52,8 @@ export async function mutateSubmissionAndReload<T>(
   return reload();
 }
 
-export function shippingFieldLabel(field: string): string {
+export function shippingFieldLabel(field: string | null): string {
+  if (field === null) return "Case-level issue";
   const labels: Record<string, string> = {
     shipper: "Shipper",
     consignee: "Consignee",

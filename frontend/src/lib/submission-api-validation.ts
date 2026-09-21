@@ -1,4 +1,4 @@
-import type { SubmissionDeliveryOutcome, SubmissionDispatch, SubmissionItem, SubmissionSection, SubmissionWorkflowResponse } from "@/types/outbound";
+import type { EmailDraft, SenderEmailDrafts, SubmissionDeliveryOutcome, SubmissionDispatch, SubmissionItem, SubmissionMessageSnapshot, SubmissionSection, SubmissionWorkflowResponse } from "@/types/outbound";
 
 const targetTypes = ["COMPETITION_CASE", "UPLOAD_COMPARISON"];
 const caseStatuses = ["MATCH", "MISMATCH", "NEEDS_REVIEW", "FAILED"];
@@ -29,7 +29,7 @@ function isSubmissionItem(value: unknown): value is SubmissionItem {
     && stringOrNull(value.sender_email)
     && typeof value.automated_status === "string" && caseStatuses.includes(value.automated_status)
     && (value.review_reason === null || (typeof value.review_reason === "string" && reviewReasons.includes(value.review_reason)))
-    && typeof value.field === "string" && shippingFields.includes(value.field)
+    && (value.field === null || (typeof value.field === "string" && shippingFields.includes(value.field)))
     && stringOrNull(value.si_value)
     && stringOrNull(value.bl_value)
     && typeof value.reason === "string"
@@ -42,7 +42,47 @@ function isDeliveryOutcome(value: unknown): value is SubmissionDeliveryOutcome {
     && stringOrNull(value.recipient)
     && typeof value.status === "string" && deliveryStatuses.includes(value.status)
     && typeof value.attempted_at === "string"
-    && stringOrNull(value.error_reason);
+    && stringOrNull(value.error_reason)
+    && stringOrNull(value.provider_message_id);
+}
+
+function isMessageSnapshot(value: unknown): value is SubmissionMessageSnapshot {
+  return isObject(value)
+    && stringOrNull(value.route_recipient)
+    && stringOrNull(value.recipient)
+    && typeof value.subject === "string"
+    && typeof value.body === "string"
+    && stringArray(value.included_target_ids)
+    && stringArray(value.included_review_ids)
+    && stringOrNull(value.provider_message_id)
+    && typeof value.status === "string" && deliveryStatuses.includes(value.status)
+    && stringOrNull(value.error_reason)
+    && typeof value.dispatch_type === "string" && dispatchTypes.includes(value.dispatch_type)
+    && typeof value.attempted_at === "string"
+    && stringOrNull(value.sent_at);
+}
+
+export function isEmailDraft(value: unknown): value is EmailDraft {
+  return isObject(value)
+    && typeof value.draft_id === "string"
+    && Number.isInteger(value.revision) && Number(value.revision) >= 1
+    && typeof value.channel === "string" && channels.includes(value.channel)
+    && typeof value.dispatch_type === "string" && dispatchTypes.includes(value.dispatch_type)
+    && typeof value.route_recipient === "string"
+    && typeof value.recipient === "string"
+    && typeof value.subject === "string"
+    && typeof value.body === "string"
+    && Array.isArray(value.included_items)
+    && value.included_items.every((item) => isObject(item)
+      && typeof item.target_type === "string" && targetTypes.includes(item.target_type)
+      && typeof item.target_id === "string"
+      && typeof item.source_review_id === "string")
+    && typeof value.created_at === "string"
+    && typeof value.updated_at === "string";
+}
+
+export function isSenderEmailDrafts(value: unknown): value is SenderEmailDrafts {
+  return isObject(value) && Array.isArray(value.drafts) && value.drafts.every(isEmailDraft);
 }
 
 export function isSubmissionDispatch(value: unknown): value is SubmissionDispatch {
@@ -57,7 +97,8 @@ export function isSubmissionDispatch(value: unknown): value is SubmissionDispatc
     && stringArray(value.added_target_ids)
     && stringArray(value.removed_target_ids)
     && stringArray(value.successful_snapshot_target_ids)
-    && Array.isArray(value.outcomes) && value.outcomes.every(isDeliveryOutcome);
+    && Array.isArray(value.outcomes) && value.outcomes.every(isDeliveryOutcome)
+    && Array.isArray(value.message_snapshots) && value.message_snapshots.every(isMessageSnapshot);
 }
 
 function isSubmissionSection(value: unknown): value is SubmissionSection {

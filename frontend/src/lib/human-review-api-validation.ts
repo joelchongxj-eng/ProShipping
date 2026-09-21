@@ -181,7 +181,7 @@ export function isEscalationAssignment(value: unknown): value is EscalationAssig
     && typeof value.review_id === "string"
     && isReviewTargetType(value.target_type)
     && typeof value.target_id === "string"
-    && typeof value.field === "string" && shippingFields.includes(value.field)
+    && enumOrNull(value.field, shippingFields)
     && optionalString(value.si_value)
     && optionalString(value.bl_value)
     && typeof value.escalation_reason === "string"

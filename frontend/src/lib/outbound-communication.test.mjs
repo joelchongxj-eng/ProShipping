@@ -10,11 +10,18 @@ import {
   submissionRemoveLabel,
   submissionRemoveTooltip,
   submissionSectionLabel,
+  shippingFieldLabel,
 } from "./outbound-communication.ts";
-import { isSubmissionDispatch, isSubmissionWorkflowResponse } from "./submission-api-validation.ts";
+import { isEmailDraft, isSenderEmailDrafts, isSubmissionDispatch, isSubmissionWorkflowResponse } from "./submission-api-validation.ts";
 import { forwardSubmissionRequest } from "./submission-proxy.ts";
 import {
   submissionActionPaths,
+  submissionDraftPath,
+  submissionDraftPreviewPath,
+  submissionDraftSendPath,
+  submissionProxyDraftPath,
+  submissionProxyDraftPreviewPath,
+  submissionProxyDraftSendPath,
   submissionProxyRemovePath,
   submissionRemovePath,
   submissionResendPath,
@@ -50,7 +57,37 @@ function dispatch(status = "SENT") {
     added_target_ids: ["email_412"],
     removed_target_ids: [],
     successful_snapshot_target_ids: status === "SENT" ? ["email_412"] : [],
-    outcomes: [{ recipient: "supervisor@example.com", status, attempted_at: "2026-09-21T01:00:00Z", error_reason: null }],
+    outcomes: [{ recipient: "supervisor@example.com", status, attempted_at: "2026-09-21T01:00:00Z", error_reason: null, provider_message_id: status === "SENT" ? "provider-1" : null }],
+    message_snapshots: [{
+      route_recipient: "supervisor@example.com",
+      recipient: "supervisor@example.com",
+      subject: "Supervisor Shipping Document Escalations",
+      body: "Review email_412.",
+      included_target_ids: ["email_412"],
+      included_review_ids: ["review-1"],
+      provider_message_id: status === "SENT" ? "provider-1" : null,
+      status,
+      error_reason: null,
+      dispatch_type: "INITIAL",
+      attempted_at: "2026-09-21T01:00:00Z",
+      sent_at: status === "SENT" ? "2026-09-21T01:00:00Z" : null,
+    }],
+  };
+}
+
+function draft() {
+  return {
+    draft_id: "draft-1",
+    revision: 1,
+    channel: "SUPERVISOR",
+    dispatch_type: "INITIAL",
+    route_recipient: "supervisor@example.com",
+    recipient: "supervisor@example.com",
+    subject: "Supervisor Shipping Document Escalations",
+    body: "Review email_412.",
+    included_items: [{ target_type: "COMPETITION_CASE", target_id: "email_412", source_review_id: "review-1" }],
+    created_at: "2026-09-21T01:00:00Z",
+    updated_at: "2026-09-21T01:00:00Z",
   };
 }
 
@@ -92,6 +129,10 @@ test("View Case preserves Submission context and upload identifiers remain separ
 
 test("accepts the exact backend workflow and dispatch contracts", () => {
   assert.equal(isSubmissionWorkflowResponse(workflow()), true);
+  const caseLevelWorkflow = workflow();
+  caseLevelWorkflow.supervisor.items[0].field = null;
+  caseLevelWorkflow.supervisor.dispatches[0].item_snapshot[0].field = null;
+  assert.equal(isSubmissionWorkflowResponse(caseLevelWorkflow), true);
   assert.equal(isSubmissionDispatch(dispatch("FAILED")), true);
   assert.equal(isSubmissionWorkflowResponse({ ...workflow(), supervisor: { ...workflow().supervisor, status: "FAILED" } }), false);
 });
@@ -108,6 +149,20 @@ test("uses the dedicated backend workflow, remove, send, update, and resend rout
   assert.equal(submissionRemovePath("supervisor", "email/412"), "/api/submission-workflow/supervisor/email%2F412");
   assert.equal(submissionProxyRemovePath("sender", "email 412"), "/api/outbound-submission?channel=sender&target_id=email+412");
   assert.equal(submissionResendPath("dispatch/1"), "/api/submission/dispatches/dispatch%2F1/resend");
+  assert.equal(submissionDraftPath("supervisor"), "/api/submission/drafts/supervisor");
+  assert.equal(submissionDraftPreviewPath("draft/1"), "/api/submission/drafts/draft%2F1/preview");
+  assert.equal(submissionDraftSendPath("draft/1"), "/api/submission/drafts/draft%2F1/send");
+  assert.equal(submissionProxyDraftPath("sender"), "/api/outbound-submission?action=create-draft&channel=sender");
+  assert.equal(submissionProxyDraftPreviewPath("draft 1"), "/api/outbound-submission?action=preview-draft&draft_id=draft+1");
+  assert.equal(submissionProxyDraftSendPath("draft 1"), "/api/outbound-submission?action=send-draft&draft_id=draft+1");
+});
+
+test("accepts draft and immutable message snapshot contracts", () => {
+  assert.equal(isEmailDraft(draft()), true);
+  assert.equal(isSenderEmailDrafts({ drafts: [draft()] }), true);
+  assert.equal(isEmailDraft({ ...draft(), revision: 0 }), false);
+  assert.equal(isSubmissionDispatch(dispatch()), true);
+  assert.equal(isSubmissionDispatch({ ...dispatch(), message_snapshots: [{ ...dispatch().message_snapshots[0], body: 42 }] }), false);
 });
 
 test("submission mutation waits for DELETE and then reloads backend workflow", async () => {
@@ -176,6 +231,89 @@ test("submission proxy forwards bodyless HTTP statuses without constructing a re
     assert.equal(bodyRead, false);
     assert.equal(await response.text(), "");
   }
+});
+
+test("submission proxy adds the server-only authorization token only to mutations", async () => {
+  const originalToken = process.env.OUTBOUND_EMAIL_AUTH_TOKEN;
+  process.env.OUTBOUND_EMAIL_AUTH_TOKEN = "server-only-secret";
+  const observed = [];
+  const fetchImplementation = async (_url, init) => {
+    observed.push(new Headers(init.headers));
+    return Response.json(dispatch());
+  };
+  try {
+    const postResponse = await forwardSubmissionRequest(
+      "http://localhost:8000/api/submission/supervisor/submit",
+      "POST",
+      fetchImplementation,
+    );
+    const getResponse = await forwardSubmissionRequest(
+      "http://localhost:8000/api/submission-workflow",
+      "GET",
+      fetchImplementation,
+    );
+
+    assert.equal(postResponse.status, 200);
+    assert.equal(getResponse.status, 200);
+    assert.equal(observed[0].get("X-Outbound-Email-Token"), "server-only-secret");
+    assert.equal(observed[1].has("X-Outbound-Email-Token"), false);
+    assert.equal((await postResponse.text()).includes("server-only-secret"), false);
+  } finally {
+    if (originalToken === undefined) delete process.env.OUTBOUND_EMAIL_AUTH_TOKEN;
+    else process.env.OUTBOUND_EMAIL_AUTH_TOKEN = originalToken;
+  }
+});
+
+test("submission proxy forwards compose JSON without exposing its server token", async () => {
+  const originalToken = process.env.OUTBOUND_EMAIL_AUTH_TOKEN;
+  process.env.OUTBOUND_EMAIL_AUTH_TOKEN = "server-only-secret";
+  let observedBody = "";
+  let observedHeaders;
+  try {
+    const response = await forwardSubmissionRequest(
+      "http://localhost:8000/api/submission/drafts/draft-1/preview",
+      "POST",
+      async (_url, init) => {
+        observedHeaders = new Headers(init.headers);
+        observedBody = String(init.body);
+        return Response.json(draft());
+      },
+      JSON.stringify({ revision: 1, recipient: "supervisor@example.com", subject: "Edited", body: "Exact body" }),
+    );
+
+    assert.equal(observedHeaders.get("Content-Type"), "application/json");
+    assert.equal(observedHeaders.get("X-Outbound-Email-Token"), "server-only-secret");
+    assert.deepEqual(JSON.parse(observedBody), { revision: 1, recipient: "supervisor@example.com", subject: "Edited", body: "Exact body" });
+    assert.equal((await response.text()).includes("server-only-secret"), false);
+  } finally {
+    if (originalToken === undefined) delete process.env.OUTBOUND_EMAIL_AUTH_TOKEN;
+    else process.env.OUTBOUND_EMAIL_AUTH_TOKEN = originalToken;
+  }
+});
+
+test("submission items label null affected fields as a case-level issue", () => {
+  assert.equal(shippingFieldLabel(null), "Case-level issue");
+  assert.equal(shippingFieldLabel("gross_weight_kg"), "Gross Weight in Kilograms");
+});
+
+test("download proxy preserves backend CSV content type and filename", async () => {
+  const response = await forwardSubmissionRequest(
+    "http://localhost:8000/api/export/detailed-csv",
+    "GET",
+    async () => new Response("email_id\r\nemail_001\r\n", {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": 'attachment; filename="proshipping_detailed_results.csv"',
+      },
+    }),
+  );
+
+  assert.equal(response.headers.get("content-type"), "text/csv; charset=utf-8");
+  assert.equal(
+    response.headers.get("content-disposition"),
+    'attachment; filename="proshipping_detailed_results.csv"',
+  );
+  assert.equal(await response.text(), "email_id\r\nemail_001\r\n");
 });
 
 test("submission proxy returns 502 only when fetch receives no HTTP response", async () => {

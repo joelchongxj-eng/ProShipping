@@ -27,7 +27,7 @@ class EscalationAssignment(BaseModel):
     review_id: UUID
     target_type: ReviewTargetType
     target_id: str
-    field: ShippingFieldName
+    field: ShippingFieldName | None = None
     si_value: str | None = None
     bl_value: str | None = None
     escalation_reason: str
