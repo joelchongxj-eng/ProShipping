@@ -204,6 +204,84 @@ At the same time, any automated verification process must remain trustworthy by 
 
 ---
 
+## 💡 Solution
+
+**ProShipping** is an intelligent shipping-document verification system designed to identify discrepancies between a **Shipping Instruction (SI)** and a **draft Bill of Lading (BL)** before incorrect information progresses further through the documentation process.
+
+Rather than treating verification as a simple file-comparison task, ProShipping supports the full operational workflow — from identifying the correct email, extracting shipment information, and comparing critical fields, to presenting supporting evidence and involving a human reviewer when the system cannot make a dependable decision.
+
+ProShipping follows an **evidence-first, human-in-the-loop approach**. Automated results are not presented as unexplained conclusions. Each comparison can include:
+
+- Original extracted values
+- Normalized values
+- Extraction confidence
+- Comparison explanations
+- Supporting source evidence
+
+When information is missing, unreadable, uncertain, or requires further judgement, the case remains visible and can be routed into **Human Review** instead of being silently treated as a successful verification.
+
+### 🔄 End-to-End Workflow
+
+```text
+Incoming Email
+        │
+        ▼
+Email Classification
+        │
+        ├── SI Request
+        ├── Invoice Query
+        ├── General
+        ├── Spam
+        │
+        └── BL Comparison
+                │
+                ▼
+        SI + Draft BL Extraction
+                │
+                ▼
+        Value Normalization
+                │
+                ▼
+        Seven-Field Comparison
+                │
+          ┌─────┼─────┐
+          ▼     ▼     ▼
+       Matched Mismatch Needs Review
+          │     │       │
+          │     │       ▼
+          │     └── Human Review
+          │              │
+          │        Correct / Confirm /
+          │        Accept Equivalent /
+          │        Retry / Escalate
+          │              │
+          └──────────────┘
+                 │
+                 ▼
+        Final Verified Result
+```
+
+### 🎯 Why ProShipping Fits the Problem
+
+The verification challenge does not begin and end with comparing two documents.
+
+Shipping teams must first identify which incoming messages require verification, locate the correct SI and draft BL, extract the required shipment information, determine whether differently written values are actually equivalent, detect genuine discrepancies, and decide when a result is too uncertain to trust automatically.
+
+ProShipping is designed around this **entire verification workflow**.
+
+It directly addresses the main operational problems:
+
+- **Inbox overload and missed requests** through automatic email classification and direct routing of BL comparison requests.
+- **Repetitive manual checking** through automated extraction and comparison of the seven required shipment fields.
+- **Formatting and terminology differences** through normalization and comparison logic.
+- **Opaque automated decisions** through confidence information, comparison explanations, source references, and supporting evidence.
+- **Missing, unreadable, or uncertain information** through a dedicated Human Review workflow.
+- **Unresolved operational issues** through correction, retry, supervisor escalation, sender follow-up, and review history.
+
+ProShipping therefore functions as more than a document-comparison tool. It provides a **traceable verification workflow for identifying, explaining, reviewing, and resolving shipping-document discrepancies before the draft Bill of Lading is finalized**.
+
+By combining automation with evidence and human oversight, ProShipping is designed to reduce repetitive manual work while preserving the judgement required for uncertain cases.
+
 ## Tech Stack
 
 - **Backend:** Python 3.11+, FastAPI, Uvicorn, and Pydantic
