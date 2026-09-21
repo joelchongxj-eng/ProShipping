@@ -42,7 +42,7 @@ export function ProcessInboxButton() {
 
   return (
     <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end">
-      <button type="button" disabled={isProcessing} onClick={processInbox} className="inline-flex min-h-10 items-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-500">
+      <button type="button" disabled={isProcessing} onClick={processInbox} className="inline-flex min-h-10 items-center rounded-md bg-blue-950 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-500">
         {isProcessing ? "Processing..." : "Process Inbox"}
       </button>
       {result && (

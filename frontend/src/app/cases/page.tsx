@@ -29,14 +29,14 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
   return (
     <div className="space-y-4">
       <BackLink href="/">Back to Dashboard</BackLink>
-      <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{title}</h1>
+      <div className="border-b border-slate-200 pb-4"><h1 className="text-2xl font-bold tracking-tight text-slate-950">{title}</h1></div>
       {filter === "invalid" ? (
         <p className="text-sm text-slate-600">Choose a supported status and, for Needs Review, an optional review reason. <Link href="/cases" className="underline">View all cases</Link>.</p>
       ) : (
         <>
           <p className="text-sm text-slate-600">{cases.length} matching case{cases.length === 1 ? "" : "s"} · {isMockMode ? "Demo data" : "Backend data"}</p>
           {filter.group === "needs_review" && <p className="text-xs text-slate-500">{filter.reviewReason ? `Filtered by backend review reason: ${getReviewReasonDisplay(filter.reviewReason).label}.` : "All cases flagged by the backend for human review are shown here."}</p>}
-          <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+          <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
             {cases.length > 0 ? <FilteredCaseList cases={cases} /> : <p className="px-4 py-4 text-sm text-slate-500">No cases</p>}
           </div>
         </>

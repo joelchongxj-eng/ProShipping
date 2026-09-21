@@ -39,7 +39,7 @@ export function HumanReviewQueue({ cases }: { cases: HumanReviewQueueItem[] }) {
 
   return (
     <div className="space-y-4">
-      <dl aria-label="Human Review queue summary" className="flex flex-wrap gap-x-6 gap-y-3 border-y border-slate-200 py-3 text-sm">
+      <dl aria-label="Human Review queue summary" className="flex flex-wrap gap-x-8 gap-y-3 rounded-md border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
         {[
           ["Queue Cases", summary.total],
           ["Mismatch", summary.mismatch],
@@ -52,7 +52,7 @@ export function HumanReviewQueue({ cases }: { cases: HumanReviewQueueItem[] }) {
         ))}
       </dl>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,24rem)] lg:items-end">
+      <div className="grid gap-4 rounded-md border border-slate-200 bg-slate-50/70 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,24rem)] lg:items-end">
         <div className="space-y-3">
           <fieldset>
             <legend className="mb-1.5 text-xs font-medium text-slate-600">Automated Status</legend>
@@ -63,7 +63,7 @@ export function HumanReviewQueue({ cases }: { cases: HumanReviewQueueItem[] }) {
                   type="button"
                   aria-pressed={automatedStatusFilter === item.value}
                   onClick={() => setAutomatedStatusFilter(item.value)}
-                  className={`min-h-10 rounded border px-3 text-sm font-medium ${automatedStatusFilter === item.value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+                  className={`min-h-10 rounded-md border px-3 text-sm font-semibold ${automatedStatusFilter === item.value ? "border-blue-900 bg-blue-950 text-white shadow-sm" : "border-slate-300 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50"}`}
                 >
                   {item.label}
                 </button>
@@ -80,7 +80,7 @@ export function HumanReviewQueue({ cases }: { cases: HumanReviewQueueItem[] }) {
                   type="button"
                   aria-pressed={humanReviewStatusFilter === item.value}
                   onClick={() => setHumanReviewStatusFilter(item.value)}
-                  className={`min-h-9 rounded border px-2.5 text-xs font-medium ${humanReviewStatusFilter === item.value ? "border-slate-700 bg-slate-100 text-slate-800" : "border-slate-300 bg-white text-slate-600"}`}
+                  className={`min-h-9 rounded-md border px-2.5 text-xs font-medium ${humanReviewStatusFilter === item.value ? "border-blue-300 bg-blue-100 text-blue-950" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}
                 >
                   {item.label}
                 </button>
@@ -105,10 +105,10 @@ export function HumanReviewQueue({ cases }: { cases: HumanReviewQueueItem[] }) {
         <p>Automated and Human Review status are filtered separately.</p>
       </div>
 
-      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <table className="block w-full table-fixed text-left text-sm lg:table">
           <caption className="sr-only">Cases requiring human attention, separated by automated and Human Review status</caption>
-          <thead className="hidden border-b border-slate-200 bg-slate-100 text-xs text-slate-600 lg:table-header-group">
+          <thead className="hidden border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500 lg:table-header-group">
             <tr>
               <th scope="col" className="w-[14%] px-3 py-3 font-medium">Email ID</th>
               <th scope="col" className="w-[32%] px-3 py-3 font-medium">Subject</th>
@@ -120,13 +120,13 @@ export function HumanReviewQueue({ cases }: { cases: HumanReviewQueueItem[] }) {
           </thead>
           <tbody className="block lg:table-row-group">
             {shown.map((item) => (
-                <tr key={item.target_id} className="grid grid-cols-1 border-b border-slate-200 last:border-b-0 sm:grid-cols-2 lg:table-row lg:hover:bg-slate-50">
+                <tr key={item.target_id} className="grid grid-cols-1 border-b border-slate-200 last:border-b-0 sm:grid-cols-2 lg:table-row lg:hover:bg-blue-50/40">
                   <td className={cellClass}><span className={mobileLabel}>Email ID</span><span className="break-all font-mono text-xs">{item.email_id}</span></td>
                   <td className={cellClass}><span className={mobileLabel}>Subject</span><span className="break-words font-medium text-slate-900">{item.subject}</span></td>
                   <td className={cellClass}><span className={mobileLabel}>Automated Status</span><StatusBadge status={item.automated_status} /></td>
                   <td className={cellClass}><span className={mobileLabel}>Human Review Status</span><HumanReviewStatusBadge status={item.human_review_status} /></td>
                   <td className={cellClass}><span className={mobileLabel}>Review Reason</span><span className="text-xs text-slate-700">{item.review_reason ? getReviewReasonDisplay(item.review_reason).label : "Not supplied"}</span></td>
-                  <td className={cellClass}><Link prefetch={false} href={buildCaseDetailHref(item.email_id, "/review")} className="inline-flex min-h-9 items-center font-medium text-slate-900 underline decoration-slate-300 underline-offset-4 hover:decoration-slate-900">Open Review</Link></td>
+                  <td className={cellClass}><Link prefetch={false} href={buildCaseDetailHref(item.email_id, "/review")} className="inline-flex min-h-9 items-center font-semibold text-blue-900 hover:text-blue-700">Open Review <span aria-hidden="true" className="ml-1">→</span></Link></td>
                 </tr>
             ))}
             {shown.length === 0 && <tr className="block lg:table-row"><td colSpan={6} className="block px-4 py-6 text-sm text-slate-500 lg:table-cell">No review cases match the selected filters.</td></tr>}

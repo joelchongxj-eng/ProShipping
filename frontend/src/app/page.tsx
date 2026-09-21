@@ -24,20 +24,20 @@ export default async function Page() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+    <div className="space-y-6">
+      <div className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Dashboard</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Overview of shipping document verification cases.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">Dashboard</h1>
+          <p className="mt-1.5 text-sm leading-6 text-slate-600">Overview of shipping document verification cases.</p>
         </div>
-        <div className="shrink-0">
-          <Link href="/upload" className="inline-flex min-h-11 items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">Upload SI &amp; Draft BL</Link>
+        <div className="shrink-0 sm:text-right">
+          <Link href="/upload" className="inline-flex min-h-10 items-center rounded-md bg-blue-950 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-800">Upload SI &amp; Draft BL</Link>
           <p className="mt-1.5 text-xs text-slate-500">Start a separate manual comparison.</p>
         </div>
       </div>
       <DashboardSummary total={cases.length} counts={counts} />
       {isMockMode && <p className="text-xs text-slate-500">Demo data · Synthetic verification cases</p>}
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <StatusSection group="matched" title="Matched" cases={groups.matched} />
         <StatusSection group="mismatch" title="Mismatch" cases={groups.mismatch} />
         <NeedsReviewSection cases={groups.needs_review} />

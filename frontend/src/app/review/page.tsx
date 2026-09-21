@@ -21,9 +21,9 @@ export default async function Page() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Human Review</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-600">Operational queue for backend-identified mismatches and cases requiring human attention.</p>
+      <div className="border-b border-slate-200 pb-5">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-950">Human Review</h1>
+        <p className="mt-1.5 max-w-3xl text-sm leading-6 text-slate-600">Operational queue for backend-identified mismatches and cases requiring human attention.</p>
       </div>
       <p className="text-xs text-slate-500">{isMockMode ? "Demo cases" : "Backend Human Review queue"}</p>
       <HumanReviewQueue cases={cases} />

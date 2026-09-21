@@ -33,35 +33,34 @@ export default async function UploadComparisonPage({ params }: Props) {
 
   const reviewReason = getReviewReasonDisplay(result.review_reason);
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <BackLink href="/upload">Back to Manual Upload</BackLink>
-      <header>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-semibold tracking-tight">Upload Comparison Result</h1>
-          <span className="text-xs font-medium text-slate-500">Status</span>
-          <StatusBadge status={result.status} />
+      <header className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-4 sm:px-5">
+          <div><p className="text-[11px] font-semibold uppercase tracking-wider text-blue-800">Manual verification result</p><h1 className="mt-1 text-xl font-bold tracking-tight">Upload Comparison Result</h1></div>
+          <div className="flex items-center gap-2"><span className="text-xs font-medium text-slate-500">Status</span><StatusBadge status={result.status} /></div>
         </div>
-        <p className="mt-2 break-all font-mono text-xs text-slate-500">Comparison ID: {result.comparison_id}</p>
+        <p className="px-4 py-3 break-all font-mono text-xs text-slate-500 sm:px-5">Comparison ID: {result.comparison_id}</p>
       </header>
 
-      <dl aria-label="Uploaded documents" className="grid gap-3 border-y border-slate-200 py-3 text-xs sm:grid-cols-2">
+      <dl aria-label="Uploaded documents" className="grid overflow-hidden rounded-md border border-slate-200 bg-slate-200 text-xs shadow-sm sm:grid-cols-2 sm:gap-px">
         {(["si", "bl"] as const).map((role) => {
           const file = role === "si" ? result.si_file : result.bl_file;
           return (
-            <div key={role} className="min-w-0">
-              <dt className="text-slate-500">{role === "si" ? "Shipping Instruction" : "Draft Bill of Lading"}</dt>
-              <dd className="mt-1 break-all font-medium text-slate-800">{file.filename}</dd>
-              <dd className="mt-2"><a href={getUploadAttachmentUrl(result.comparison_id, role)} target="_blank" rel="noreferrer" className="font-medium text-slate-900 underline decoration-slate-300 underline-offset-4 hover:decoration-slate-900">Open original attachment</a></dd>
+            <div key={role} className="min-w-0 bg-white p-4">
+              <dt className="font-semibold uppercase tracking-wide text-slate-500">{role === "si" ? "Shipping Instruction" : "Draft Bill of Lading"}</dt>
+              <dd className="mt-1.5 break-all text-sm font-semibold text-slate-800">{file.filename}</dd>
+              <dd className="mt-2"><a href={getUploadAttachmentUrl(result.comparison_id, role)} target="_blank" rel="noreferrer" className="font-semibold text-blue-900 hover:text-blue-700">Open original attachment <span aria-hidden="true">↗</span></a></dd>
             </div>
           );
         })}
       </dl>
 
       {result.review_reason && (
-        <section aria-labelledby="upload-review-reason" className="border-l-2 border-yellow-400 bg-yellow-50 px-3 py-3 text-yellow-950">
+        <section aria-labelledby="upload-review-reason" className="rounded-r-md border-l-2 border-amber-500 bg-amber-50 px-4 py-3 text-amber-950">
           <h2 id="upload-review-reason" className="text-sm font-semibold">Review required</h2>
           <p className="mt-1 text-sm"><span className="font-medium">Reason:</span> {reviewReason.label}</p>
-          <p className="mt-1 text-sm text-yellow-900">{reviewReason.message}</p>
+          <p className="mt-1 text-sm text-amber-900">{reviewReason.message}</p>
         </section>
       )}
 

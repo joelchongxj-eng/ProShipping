@@ -31,11 +31,11 @@ function ActionButton({ action, active, disabled, tooltip, onClick }: {
         aria-pressed={active}
         aria-describedby={tooltipId}
         onClick={onClick}
-        className={`min-h-9 rounded border px-3 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+        className={`min-h-9 rounded-md border px-3 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${active ? "border-blue-900 bg-blue-950 text-white shadow-sm" : "border-slate-300 bg-white text-slate-700 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-950"}`}
       >
         {reviewActionLabels[action]}
       </button>
-      <span id={tooltipId} role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-64 -translate-x-1/2 rounded bg-slate-950 px-3 py-2 text-left text-xs font-normal leading-5 text-white shadow-lg group-hover:block group-focus-within:block">
+      <span id={tooltipId} role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-64 -translate-x-1/2 rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-left text-xs font-normal leading-5 text-white shadow-xl group-hover:block group-focus-within:block">
         {tooltip}
       </span>
     </span>
@@ -96,14 +96,14 @@ export function ReviewActions({ item, selectedField }: { item: VerificationCase;
   return (
     <div>
       <div className="space-y-3">
-        <div>
-          <p className="mb-2 text-xs font-medium text-slate-500">Review decision</p>
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Review decision</p>
           <div className="flex flex-wrap gap-2" aria-label="Review decision actions">
             {reviewActions.slice(0, 5).map((candidate) => <ActionButton key={candidate} action={candidate} active={action === candidate} disabled={!actionAvailability[candidate].enabled || submitting} tooltip={actionAvailability[candidate].tooltip} onClick={() => chooseAction(candidate)} />)}
           </div>
         </div>
-        <div>
-          <p className="mb-2 text-xs font-medium text-slate-500">Processing and escalation</p>
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Additional actions</p>
           <div className="flex flex-wrap gap-2" aria-label="Processing and escalation actions">
             {reviewActions.slice(5).map((candidate) => <ActionButton key={candidate} action={candidate} active={action === candidate} disabled={!actionAvailability[candidate].enabled || submitting} tooltip={actionAvailability[candidate].tooltip} onClick={() => chooseAction(candidate)} />)}
           </div>
@@ -111,7 +111,7 @@ export function ReviewActions({ item, selectedField }: { item: VerificationCase;
       </div>
 
       {action && (
-        <form onSubmit={submit} className="mt-4 space-y-3 rounded border border-slate-200 bg-slate-50 p-3">
+        <form onSubmit={submit} className="mt-4 space-y-3 rounded-md border border-blue-200 bg-white p-3 shadow-sm">
           {["CORRECT", "EQUIVALENT", "UNREADABLE", "ESCALATE", "REQUEST_INFORMATION"].includes(action) && selectedField && <div className="text-xs text-slate-600"><span className="font-medium text-slate-800">Selected field:</span> {shippingFieldLabels[selectedField]}</div>}
           {(action === "CORRECT" || action === "UNREADABLE") && (
             <label className="block text-xs font-medium text-slate-700">Document side
@@ -135,7 +135,7 @@ export function ReviewActions({ item, selectedField }: { item: VerificationCase;
           {action === "REQUEST_INFORMATION" && <p className="text-xs leading-5 text-slate-600">Submitting records the request and adds it to Sender Follow-Up. It does not send an email immediately.</p>}
           {feedback && <p role={feedback.tone === "error" ? "alert" : "status"} className={`text-sm ${feedback.tone === "error" ? "text-red-800" : "text-green-800"}`}>{feedback.message}</p>}
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={submitting} className="min-h-10 rounded bg-slate-900 px-4 text-sm font-medium text-white outline-none hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">{submitting ? "Saving..." : action === "RETRY" ? "Run Retry" : reviewActionLabels[action]}</button>
+            <button type="submit" disabled={submitting} className="min-h-10 rounded-md bg-blue-950 px-4 text-sm font-semibold text-white shadow-sm outline-none hover:bg-blue-800 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">{submitting ? "Saving..." : action === "RETRY" ? "Run Retry" : reviewActionLabels[action]}</button>
             <button type="button" disabled={submitting} onClick={() => setAction(null)} className="min-h-10 px-2 text-sm text-slate-600 underline underline-offset-4">Cancel</button>
           </div>
         </form>

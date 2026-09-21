@@ -32,14 +32,14 @@ import type { SubmissionDispatch, SubmissionSection, SubmissionWorkflowResponse 
 
 const sectionStatusStyles = {
   DRAFT: "border-slate-300 bg-slate-50 text-slate-700",
-  SUBMITTED: "border-green-300 bg-green-50 text-green-800",
-  UPDATE_REQUIRED: "border-yellow-300 bg-yellow-50 text-yellow-900",
+  SUBMITTED: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  UPDATE_REQUIRED: "border-amber-200 bg-amber-50 text-amber-900",
 };
 
 const deliveryStyles = {
-  SENT: "border-green-300 bg-green-50 text-green-800",
-  FAILED: "border-red-300 bg-red-50 text-red-800",
-  NOT_CONFIGURED: "border-yellow-300 bg-yellow-50 text-yellow-900",
+  SENT: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  FAILED: "border-red-200 bg-red-50 text-red-800",
+  NOT_CONFIGURED: "border-slate-300 bg-slate-100 text-slate-700",
 };
 
 function formatTimestamp(value: string | null): string {
@@ -64,11 +64,11 @@ function DispatchHistory({
   }
 
   return (
-    <ul className="divide-y divide-slate-200" aria-label="Dispatch history">
+    <ul className="divide-y divide-slate-200 bg-slate-50/50" aria-label="Dispatch history">
       {[...dispatches].reverse().map((dispatch) => {
         const canResend = dispatchCanBeResent(dispatch);
         return (
-          <li key={dispatch.dispatch_id} className="px-4 py-4">
+          <li key={dispatch.dispatch_id} className="px-4 py-3.5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -82,7 +82,7 @@ function DispatchHistory({
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {dispatch.outcomes.map((outcome, index) => (
-                    <div key={`${outcome.recipient ?? "unconfigured"}-${index}`} className="rounded border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs">
+                    <div key={`${outcome.recipient ?? "unconfigured"}-${index}`} className="rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs shadow-sm">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`inline-flex rounded border px-2 py-0.5 font-medium ${deliveryStyles[outcome.status]}`}>{deliveryStatusLabel(outcome.status)}</span>
                         <span className="break-all text-slate-700">{outcome.recipient ?? "Recipient not configured"}</span>
@@ -133,8 +133,8 @@ function SubmissionSectionPanel({
   const actionLabel = submissionActionLabel(channel, section.status);
 
   return (
-    <section aria-labelledby={`${channel}-submission-title`} className="overflow-hidden rounded-md border border-slate-300 bg-white">
-      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+    <section aria-labelledby={`${channel}-submission-title`} className="overflow-hidden rounded-md border border-slate-300 bg-white shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 id={`${channel}-submission-title`} className="text-base font-semibold text-slate-950">{title}</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
@@ -143,7 +143,7 @@ function SubmissionSectionPanel({
               : "Information requests grouped and delivered by the backend to each email sender."}
           </p>
         </div>
-        <span className={`inline-flex shrink-0 rounded border px-2.5 py-1 text-xs font-semibold ${sectionStatusStyles[section.status]}`}>
+        <span className={`inline-flex shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold ${sectionStatusStyles[section.status]}`}>
           {submissionSectionLabel(section.status)}
         </span>
       </div>
@@ -154,12 +154,17 @@ function SubmissionSectionPanel({
         <div><dt className="text-slate-500">Dispatches</dt><dd className="mt-1 font-semibold tabular-nums text-slate-900">{section.dispatches.length}</dd></div>
       </dl>
 
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-2.5">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Active queue</h3>
+        <span className="text-xs font-medium tabular-nums text-slate-500">{section.items.length} waiting</span>
+      </div>
+
       {section.items.length === 0 ? (
         <p className="px-4 py-6 text-sm text-slate-500">{emptyText}</p>
       ) : (
         <ul className="divide-y divide-slate-200" aria-label={`${title} items`}>
           {section.items.map((item) => (
-            <li key={`${item.target_type}:${item.target_id}`} className="p-4">
+            <li key={`${item.target_type}:${item.target_id}`} className="p-4 hover:bg-blue-50/30">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -178,7 +183,7 @@ function SubmissionSectionPanel({
                   </dl>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <Link href={buildSubmissionTargetHref(item.target_type, item.target_id)} className="inline-flex min-h-9 items-center rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-800 hover:bg-slate-50">View Case</Link>
+                  <Link href={buildSubmissionTargetHref(item.target_type, item.target_id)} className="inline-flex min-h-9 items-center rounded-md border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-950 hover:bg-blue-100">View Case</Link>
                   <span className="group relative inline-flex">
                     <button
                       type="button"
@@ -186,7 +191,7 @@ function SubmissionSectionPanel({
                       onClick={() => onRemove(channel, item.target_id)}
                       aria-label={submissionRemoveLabel(item.target_id)}
                       aria-describedby={`remove-${channel}-${item.target_id}-tooltip`}
-                      className="inline-flex size-9 items-center justify-center rounded border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex size-9 items-center justify-center rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {pendingAction === `remove:${channel}:${item.target_id}` ? "…" : "X"}
                     </button>
@@ -218,15 +223,15 @@ function SubmissionSectionPanel({
             type="button"
             disabled={submissionActionDisabled(section.status, section.items.length) || pendingAction !== null}
             onClick={() => onPrimaryAction(channel, section.status)}
-            className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+            className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md bg-blue-950 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
           >
             {pendingAction === `send:${channel}` ? "Sending..." : actionLabel}
           </button>
         )}
       </div>
 
-      <details className="border-t border-slate-200">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900">
+      <details className="border-t border-slate-200 bg-slate-50/60">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
           Dispatch History ({section.dispatches.length})
         </summary>
         <DispatchHistory dispatches={section.dispatches} pendingAction={pendingAction} onResend={onResend} />
@@ -287,7 +292,7 @@ export function SubmissionWorkspace({ workflow, competitionSubmissionUrl }: { wo
             <h2 id="competition-submission-title" className="text-sm font-semibold text-slate-950">Competition Submission</h2>
             <p className="mt-1 text-xs leading-5 text-slate-600">Evaluator JSON remains separate from outbound email communication.</p>
           </div>
-          <a href={competitionSubmissionUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 shrink-0 items-center justify-center rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-800 hover:bg-slate-100">Open submission JSON</a>
+          <a href={competitionSubmissionUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-950">Open submission JSON</a>
         </div>
       </section>
     </div>

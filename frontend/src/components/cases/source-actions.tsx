@@ -67,7 +67,7 @@ export function SourceActions({ sourceContext, comparison }: { sourceContext: Ev
   return (
     <div className="mt-3">
       <div className="flex flex-wrap gap-3">
-        <button type="button" disabled={!hasSource} onClick={() => setOpen(true)} aria-describedby={!hasSource ? "source-comparison-unavailable" : undefined} className="min-h-10 rounded border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">View Source Comparison</button>
+        <button type="button" disabled={!hasSource} onClick={() => setOpen(true)} aria-describedby={!hasSource ? "source-comparison-unavailable" : undefined} className="inline-flex min-h-10 items-center rounded-md border border-blue-200 bg-blue-50 px-3 text-sm font-semibold text-blue-950 shadow-sm hover:border-blue-300 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50">View Source Comparison</button>
       </div>
       {!hasSource && <p id="source-comparison-unavailable" className="mt-1 text-xs text-slate-500">Source documents unavailable.</p>}
       {open && sources && <SourceViewer sources={sources} highlights={highlights} field={comparison.field} onClose={() => setOpen(false)} />}

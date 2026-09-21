@@ -18,7 +18,7 @@ type SourceViewerProps = {
   onClose: () => void;
 };
 
-const controls = "min-h-10 rounded border border-slate-300 bg-white px-3 text-sm disabled:cursor-not-allowed disabled:opacity-40";
+const controls = "min-h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40";
 
 function fieldLabel(value: string) {
   return value
@@ -105,9 +105,9 @@ function SourceDocumentPane({ side, source, highlight }: { side: SourceSide; sou
       : source?.format === "docx" || source?.format === "xlsx";
 
   return (
-    <section aria-labelledby={`source-pane-${side}`} className="flex min-h-[34rem] min-w-0 flex-col overflow-hidden rounded border border-slate-200 bg-white lg:min-h-0">
-      <header className="shrink-0 border-b border-slate-200 p-3">
-        <h3 id={`source-pane-${side}`} className="text-sm font-semibold">{title}</h3>
+    <section aria-labelledby={`source-pane-${side}`} className="flex min-h-[34rem] min-w-0 flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm lg:min-h-0">
+      <header className={`shrink-0 border-b border-slate-200 p-3.5 ${side === "si" ? "bg-blue-50/70" : "bg-slate-50"}`}>
+        <div className="flex items-center gap-2"><span aria-hidden="true" className={`size-2 rounded-full ${side === "si" ? "bg-blue-700" : "bg-slate-600"}`} /><h3 id={`source-pane-${side}`} className="text-sm font-semibold">{title}</h3></div>
         <p className="mt-1 break-all text-xs text-slate-500">{source?.filename ?? "Source document unavailable"}</p>
         {source?.synthetic && <p className="mt-1 text-xs text-slate-500">Synthetic demo document, not an original shipment file.</p>}
       </header>
@@ -129,12 +129,12 @@ function SourceDocumentPane({ side, source, highlight }: { side: SourceSide; sou
             </div>
           )}
           {notice && <p role="status" className="shrink-0 border-b border-slate-200 px-3 py-2 text-sm">{notice}</p>}
-          <div className="shrink-0 border-b border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-700">
-            <span className="font-semibold">Selected evidence:</span> {highlight?.evidenceText || "Evidence unavailable."}
+          <div className="shrink-0 border-b border-slate-200 bg-amber-50/60 px-3 py-2.5 text-xs leading-5 text-slate-700">
+            <span className="font-semibold text-slate-900">Selected evidence:</span> {highlight?.evidenceText || "Evidence unavailable."}
             {highlight?.reference && <span className="ml-2 text-slate-500">Source: {highlight.reference}</span>}
             {exactHighlightUnavailable && <span className="ml-2 text-slate-500">Exact source highlighting is unavailable for this evidence.</span>}
           </div>
-          <div ref={container} className="min-h-0 flex-1 overflow-auto bg-slate-100 p-3">
+          <div ref={container} className="min-h-0 flex-1 overflow-auto bg-slate-100 p-3 sm:p-4">
             {error ? (
               <p role="alert" className="p-3 text-sm text-red-800">{error}</p>
             ) : source.format === "pdf" ? (
@@ -150,7 +150,7 @@ function SourceDocumentPane({ side, source, highlight }: { side: SourceSide; sou
               textContent === null ? (
                 <p role="status" className="p-3 text-sm">Loading {title} text document...</p>
               ) : (
-                <pre className="whitespace-pre-wrap break-words rounded border border-slate-200 bg-white p-4 font-mono text-sm leading-6 text-slate-800">
+                <pre className="whitespace-pre-wrap break-words rounded-md border border-slate-200 bg-white p-4 font-mono text-[13px] leading-6 text-slate-800 shadow-sm">
                   {textHighlight ? <>{textContent.slice(0, textHighlight.start)}<mark ref={highlightedText} aria-label={`Highlighted ${title} source evidence on line ${textHighlight.lineNumber}`} className="rounded-sm bg-amber-200 px-0.5 text-slate-950 outline outline-1 outline-amber-600">{textContent.slice(textHighlight.start, textHighlight.end)}</mark>{textContent.slice(textHighlight.end)}</> : textContent}
                 </pre>
               )
@@ -190,17 +190,17 @@ export default function SourceViewer({ sources, highlights, field, onClose }: So
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-2 sm:p-4">
-      <section role="dialog" aria-modal="true" aria-labelledby="source-comparison-title" className="h-[94dvh] max-h-[94dvh] w-[96vw] max-w-[95rem] overflow-hidden rounded-md border border-slate-300 bg-white text-slate-900 shadow-xl">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-2 sm:p-4">
+      <section role="dialog" aria-modal="true" aria-labelledby="source-comparison-title" className="h-[94dvh] max-h-[94dvh] w-[98vw] max-w-[100rem] overflow-hidden rounded-md border border-slate-300 bg-white text-slate-900 shadow-2xl sm:w-[96vw]">
         <div className="flex h-full min-h-0 flex-col">
-          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 p-3">
+          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3.5">
             <div className="min-w-0">
-              <h2 id="source-comparison-title" className="text-base font-semibold">Source Comparison: {fieldLabel(field)}</h2>
+              <h2 id="source-comparison-title" className="text-base font-bold">Source Comparison: {fieldLabel(field)}</h2>
               <p className="mt-1 text-xs text-slate-500">Shipping Instruction vs Draft Bill of Lading</p>
             </div>
             <button ref={closeButton} type="button" onClick={onClose} className={controls}>Close</button>
           </header>
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-100 p-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 lg:overflow-hidden">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-200/70 p-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0 lg:overflow-hidden">
             <SourceDocumentPane side="si" source={sources.si} highlight={highlights.si} />
             <SourceDocumentPane side="bl" source={sources.bl} highlight={highlights.bl} />
           </div>

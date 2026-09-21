@@ -34,19 +34,19 @@ function FilePicker({ role, file, error, disabled, onChange }: FilePickerProps) 
   }
 
   return (
-    <section aria-labelledby={`${role}-upload-title`} className="rounded-md border border-slate-300 bg-white p-4">
+    <section aria-labelledby={`${role}-upload-title`} className={`rounded-md border bg-white p-4 shadow-sm ${role === "si" ? "border-blue-200" : "border-slate-300"}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 id={`${role}-upload-title`} className="text-sm font-semibold text-slate-950">{label}</h2>
           <p className="mt-1 text-xs text-slate-500">{role === "si" ? "Reference document" : "Document to verify against the SI"}</p>
         </div>
-        <span className="rounded border border-slate-300 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">{role.toLocaleUpperCase()}</span>
+        <span className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${role === "si" ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-300 bg-slate-50 text-slate-700"}`}>{role.toLocaleUpperCase()}</span>
       </div>
 
       <div
         onDragOver={(event) => event.preventDefault()}
         onDrop={drop}
-        className={`mt-4 rounded border border-dashed p-4 ${error ? "border-red-400 bg-red-50/40" : "border-slate-300 bg-slate-50"}`}
+        className={`mt-4 min-h-36 rounded-md border border-dashed p-4 ${error ? "border-red-400 bg-red-50/40" : file ? "border-blue-300 bg-blue-50/40" : "border-slate-300 bg-slate-50/70"}`}
       >
         {file ? (
           <div className="space-y-3">
@@ -55,14 +55,14 @@ function FilePicker({ role, file, error, disabled, onChange }: FilePickerProps) 
               <p className="mt-1 text-xs text-slate-500">{getFileExtension(file.name)} · {formatFileSize(file.size)}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={disabled} onClick={() => input.current?.click()} className="min-h-9 rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">Replace file</button>
-              <button type="button" disabled={disabled} onClick={() => choose(null)} className="min-h-9 rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">Remove file</button>
+              <button type="button" disabled={disabled} onClick={() => input.current?.click()} className="min-h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50">Replace file</button>
+              <button type="button" disabled={disabled} onClick={() => choose(null)} className="min-h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50">Remove file</button>
             </div>
           </div>
         ) : (
           <div>
             <p className="text-sm text-slate-700">Drag and drop the {label}, or browse from your device.</p>
-            <button type="button" disabled={disabled} onClick={() => input.current?.click()} className="mt-3 min-h-9 rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">Browse files</button>
+            <button type="button" disabled={disabled} onClick={() => input.current?.click()} className="mt-3 min-h-9 rounded-md border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-950 shadow-sm hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50">Browse files</button>
           </div>
         )}
         <input
@@ -120,8 +120,8 @@ export function UploadForm() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4">
-        <button type="submit" disabled={!canSubmit} className="min-h-11 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400">
+      <div className="flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <button type="submit" disabled={!canSubmit} className="min-h-11 rounded-md bg-blue-950 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-400">
           {submitting ? "Processing documents..." : "Verify Documents"}
         </button>
         <p role="status" aria-live="polite" className="text-xs text-slate-500">

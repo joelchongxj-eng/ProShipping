@@ -10,10 +10,10 @@ export const dynamic = "force-dynamic";
 
 function InboxHeader() {
   return (
-    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+    <div className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Inbox</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-600">Incoming emails classified by the document-processing system.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-950">Inbox</h1>
+        <p className="mt-1.5 text-sm leading-6 text-slate-600">Incoming emails classified by the document-processing system.</p>
       </div>
       <ProcessInboxButton />
     </div>

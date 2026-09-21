@@ -53,25 +53,25 @@ export function ComparisonResult({ status, comparison, reviewReason, sourceConte
   }
 
   return (
-    <div className="space-y-4">
-      <section aria-labelledby="comparison-title">
-        <h2 id="comparison-title" className="text-base font-semibold">{status === "FAILED" ? "Available extraction data (partial)" : "SI vs Draft BL comparison"}</h2>
-        <p className="mt-1 mb-3 text-xs leading-5 text-slate-500">Select a field to inspect its evidence below. Confidence measures extraction certainty only.</p>
+    <div className="space-y-5">
+      <section aria-labelledby="comparison-title" className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-4 py-3"><h2 id="comparison-title" className="text-base font-semibold">{status === "FAILED" ? "Available extraction data (partial)" : "SI vs Draft BL comparison"}</h2>
+        <p className="mt-1 text-xs leading-5 text-slate-500">Select a field to inspect its evidence below. Confidence measures extraction certainty only.</p></div>
         <table className="block w-full table-fixed border-collapse text-left md:table">
           <caption className="sr-only">Backend comparison results with separate SI and Draft BL extraction values</caption>
-          <thead className="hidden bg-slate-100 text-xs text-slate-600 md:table-header-group">
-            <tr><th scope="col" className="w-[20%] p-3">Field</th><th scope="col" className="w-[27%] p-3">Shipping Instruction</th><th scope="col" className="w-[27%] p-3">Draft Bill of Lading</th><th scope="col" className="w-[26%] p-3">Status / reason</th></tr>
+          <thead className="hidden border-b border-slate-200 bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500 md:table-header-group">
+            <tr><th scope="col" className="w-[20%] p-3 font-semibold">Field</th><th scope="col" className="w-[27%] p-3 font-semibold">Shipping Instruction</th><th scope="col" className="w-[27%] p-3 font-semibold">Draft Bill of Lading</th><th scope="col" className="w-[26%] p-3 font-semibold">Status / reason</th></tr>
           </thead>
           <tbody className="block md:table-row-group">
             {comparison.map((item, index) => {
               const label = fieldLabel(item.field);
               const active = selected === index;
-              const tone = item.status === "mismatch" ? "bg-red-50/60" : item.status === "needs_review" ? "bg-yellow-50/60" : item.status === "missing" ? "bg-gray-100" : "bg-green-50/50";
+              const tone = item.status === "mismatch" ? "bg-red-50/70" : item.status === "needs_review" ? "bg-amber-50/70" : item.status === "missing" ? "bg-slate-100" : "bg-emerald-50/40";
               return (
-                <tr key={`${item.field}-${index}`} onClick={() => selectField(index)} data-field={item.field} data-selected={active} className={`mb-3 block cursor-pointer border border-slate-200 align-top md:mb-0 md:table-row ${tone} ${active ? "outline outline-2 -outline-offset-2 outline-slate-600" : ""}`}>
+                <tr key={`${item.field}-${index}`} onClick={() => selectField(index)} data-field={item.field} data-selected={active} className={`mb-3 block cursor-pointer border-b border-slate-200 align-top last:border-b-0 hover:brightness-[0.98] md:mb-0 md:table-row ${tone} ${active ? "relative z-10 outline outline-2 -outline-offset-2 outline-blue-600" : ""}`}>
                   <th scope="row" className="block p-3 md:table-cell">
-                    <button type="button" aria-pressed={active} aria-controls="field-evidence" onClick={() => selectField(index)} className="text-left text-sm font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4">{label}</button>
-                    {active && <span className="mt-1 block text-xs font-normal text-slate-500">Selected</span>}
+                    <button type="button" aria-pressed={active} aria-controls="field-evidence" onClick={() => selectField(index)} className="text-left text-sm font-semibold text-slate-950 underline decoration-slate-300 underline-offset-4 hover:decoration-blue-600">{label}</button>
+                    {active && <span className="mt-1.5 inline-flex rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-800">Selected</span>}
                   </th>
                   <td className="block px-3 pb-3 md:table-cell md:pt-3"><span className="mb-1 block text-xs font-semibold text-slate-600 md:hidden">Shipping Instruction</span><ExtractedValueDisplay value={item.si} emphasized={item.status === "mismatch"} /></td>
                   <td className="block px-3 pb-3 md:table-cell md:pt-3"><span className="mb-1 block text-xs font-semibold text-slate-600 md:hidden">Draft Bill of Lading</span><ExtractedValueDisplay value={item.bl} emphasized={item.status === "mismatch"} /></td>

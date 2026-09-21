@@ -10,13 +10,13 @@ export function NeedsReviewSection({ cases }: { cases: VerificationCase[] }) {
   const groups = groupReviewReasonCases(cases);
 
   return (
-    <section aria-labelledby="needs-review-title" className="overflow-hidden rounded-md border border-yellow-300 bg-white lg:col-span-2">
-      <div className="flex min-h-12 items-center justify-between gap-3 border-b border-yellow-200 bg-yellow-50 px-4 py-2">
+    <section aria-labelledby="needs-review-title" className="overflow-hidden rounded-md border border-amber-200 bg-white shadow-sm lg:col-span-2">
+      <div className="flex min-h-12 items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2">
         <h2 id="needs-review-title" className="flex items-center gap-2 text-sm font-semibold text-slate-950">
           <span aria-hidden="true" className={`size-2.5 rounded-full border ${statusStyles.needs_review}`} />
           Needs Review
         </h2>
-        <span aria-label={`${cases.length} cases`} className={`rounded border px-2 py-0.5 text-xs font-semibold tabular-nums ${statusStyles.needs_review}`}>{cases.length}</span>
+        <span aria-label={`${cases.length} cases`} className={`rounded-md border px-2 py-1 text-xs font-semibold tabular-nums ${statusStyles.needs_review}`}>{cases.length}</span>
       </div>
       <div className="divide-y divide-slate-200">
         {reviewReasons.map((reason) => {
@@ -28,7 +28,7 @@ export function NeedsReviewSection({ cases }: { cases: VerificationCase[] }) {
             <section key={reason} aria-labelledby={`review-reason-${reason}`}>
               <div className="flex min-h-11 items-center justify-between gap-3 bg-slate-50 px-4 py-2">
                 <h3 id={`review-reason-${reason}`} className="text-sm font-semibold text-slate-900">{reasonLabel}</h3>
-                <span aria-label={`${reasonCases.length} cases`} className="rounded border border-yellow-300 bg-yellow-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-yellow-900">
+                <span aria-label={`${reasonCases.length} cases`} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-amber-900">
                   {reasonCases.length}
                 </span>
               </div>
@@ -39,7 +39,7 @@ export function NeedsReviewSection({ cases }: { cases: VerificationCase[] }) {
                     <li key={item.email.email_id}>
                       <Link
                         href={buildCaseDetailHref(item.email.email_id, "/")}
-                        className="grid min-h-14 gap-1 px-4 py-2.5 hover:bg-yellow-50 focus-visible:-outline-offset-2 sm:grid-cols-[minmax(9rem,0.35fr)_minmax(0,1fr)] sm:items-center sm:gap-4"
+                        className="grid min-h-14 gap-1 px-4 py-2.5 hover:bg-amber-50/70 focus-visible:-outline-offset-2 sm:grid-cols-[minmax(9rem,0.35fr)_minmax(0,1fr)] sm:items-center sm:gap-4"
                       >
                         <span className="truncate font-mono text-xs font-medium text-slate-600" title={item.email.email_id}>
                           {item.email.email_id}
@@ -57,7 +57,7 @@ export function NeedsReviewSection({ cases }: { cases: VerificationCase[] }) {
               )}
 
               <div className="flex min-h-10 items-center justify-end border-t border-slate-100 px-4 py-1">
-                <Link href={route} className="inline-flex min-h-9 items-center text-xs font-medium text-slate-700 underline underline-offset-4">
+                <Link href={route} className="inline-flex min-h-9 items-center text-xs font-semibold text-blue-900 hover:text-blue-700">
                   View all <span aria-hidden="true" className="ml-1">→</span>
                 </Link>
               </div>
@@ -67,7 +67,7 @@ export function NeedsReviewSection({ cases }: { cases: VerificationCase[] }) {
       </div>
       <div className="flex min-h-12 items-center justify-between gap-3 border-t border-slate-200 px-4 py-2 text-xs">
         <span className="text-slate-500">Backend-supplied review reasons</span>
-        <Link href="/cases?status=NEEDS_REVIEW" className="inline-flex min-h-9 items-center font-medium text-slate-800 underline underline-offset-4">View all <span aria-hidden="true" className="ml-1">→</span></Link>
+        <Link href="/cases?status=NEEDS_REVIEW" className="inline-flex min-h-9 items-center font-semibold text-blue-900 hover:text-blue-700">View all <span aria-hidden="true" className="ml-1">→</span></Link>
       </div>
     </section>
   );

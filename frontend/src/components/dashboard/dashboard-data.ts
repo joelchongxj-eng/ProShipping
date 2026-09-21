@@ -11,10 +11,10 @@ export const boardSections: { key: BoardGroup; label: string }[] = [
 ];
 
 export const statusStyles: Record<BoardGroup, string> = {
-  matched: "border-green-200 bg-green-50 text-green-800",
+  matched: "border-emerald-200 bg-emerald-50 text-emerald-800",
   mismatch: "border-red-200 bg-red-50 text-red-800",
-  needs_review: "border-yellow-300 bg-yellow-50 text-yellow-900",
-  failed: "border-black bg-black text-white",
+  needs_review: "border-amber-200 bg-amber-50 text-amber-900",
+  failed: "border-red-300 bg-red-100 text-red-900",
 };
 
 export function getFieldCounts(item: VerificationCase) {
