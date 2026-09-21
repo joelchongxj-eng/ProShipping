@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { caseAttachmentPath, caseAttachmentProxyPath, fetchTextSource, SourceDocumentError } from "./source-document.ts";
+import { caseAttachmentPath, caseAttachmentProxyPath, fetchTextSource, forwardCaseAttachmentRequest, SourceDocumentError } from "./source-document.ts";
 import { getPdfHighlightRect, resolveTextHighlight } from "./source-locator.ts";
 
 test("case source URLs preserve the backend-owned attachment path for SI and Draft BL", () => {
@@ -16,6 +16,61 @@ test("browser source URLs use the same-origin proxy and preserve the full attach
   const url = caseAttachmentProxyPath("email_004", "attachments/email_004_BL.txt");
   assert.equal(url, "/api/case-attachments/email_004?filename=attachments%2Femail_004_BL.txt");
   assert.equal(new URLSearchParams(url.split("?")[1]).get("filename"), "attachments/email_004_BL.txt");
+});
+
+test("case attachment proxy retries one transient Inbox 502 and returns the original TXT source", async () => {
+  const upstreamUrl = "https://proshipping-nrqg.onrender.com/api/cases/email_004/attachment?filename=attachments%2Femail_004_SI.txt";
+  const requested = [];
+  const responses = [
+    Response.json({ detail: "Inbox service unavailable." }, { status: 502 }),
+    new Response("Consignee: EAST BRIGHT FZ-LLC\n", {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Disposition": 'inline; filename="email_004_SI.txt"',
+      },
+    }),
+  ];
+  const result = await forwardCaseAttachmentRequest(upstreamUrl, async (url, init) => {
+    requested.push({ url, cache: init.cache });
+    return responses.shift();
+  });
+
+  assert.deepEqual(requested, [
+    { url: upstreamUrl, cache: "no-store" },
+    { url: upstreamUrl, cache: "no-store" },
+  ]);
+  assert.equal(result.status, 200);
+  assert.equal(result.headers.get("content-type"), "text/plain; charset=utf-8");
+  assert.equal(result.headers.get("content-disposition"), 'inline; filename="email_004_SI.txt"');
+  assert.equal(result.headers.get("cache-control"), "no-store");
+  assert.equal(await result.text(), "Consignee: EAST BRIGHT FZ-LLC\n");
+});
+
+test("case attachment proxy does not retry ownership 404 or a successful PDF", async () => {
+  for (const upstream of [
+    Response.json({ detail: "Attachment not found for this case." }, { status: 404 }),
+    new Response(new Uint8Array([37, 80, 68, 70]), { headers: { "Content-Type": "application/pdf" } }),
+  ]) {
+    let attempts = 0;
+    const result = await forwardCaseAttachmentRequest("https://backend.example/attachment", async () => {
+      attempts += 1;
+      return upstream;
+    });
+    assert.equal(attempts, 1);
+    assert.equal(result.status, upstream.status);
+    assert.equal(result.headers.get("content-type"), upstream.headers.get("content-type"));
+  }
+});
+
+test("case attachment proxy limits persistent Inbox 502 to two attempts", async () => {
+  let attempts = 0;
+  const result = await forwardCaseAttachmentRequest("https://backend.example/attachment", async () => {
+    attempts += 1;
+    return Response.json({ detail: "Inbox service unavailable." }, { status: 502 });
+  });
+  assert.equal(attempts, 2);
+  assert.equal(result.status, 502);
+  assert.deepEqual(await result.json(), { detail: "Inbox service unavailable." });
 });
 
 test("TXT 200 responses return the original text with line breaks", async () => {

@@ -20,6 +20,28 @@ export function caseAttachmentProxyPath(emailId: string, attachmentPath: string)
   return `/api/case-attachments/${encodeURIComponent(emailId)}?${query.toString()}`;
 }
 
+export async function forwardCaseAttachmentRequest(
+  upstreamUrl: string,
+  fetcher: SourceFetch = fetch,
+): Promise<Response> {
+  let upstream = await fetcher(upstreamUrl, { cache: "no-store" });
+  if (upstream.status === 502) {
+    await upstream.body?.cancel();
+    upstream = await fetcher(upstreamUrl, { cache: "no-store" });
+  }
+
+  const headers = new Headers({ "Cache-Control": "no-store" });
+  const contentType = upstream.headers.get("content-type");
+  const contentDisposition = upstream.headers.get("content-disposition");
+  if (contentType) headers.set("Content-Type", contentType);
+  if (contentDisposition) headers.set("Content-Disposition", contentDisposition);
+
+  return new Response(await upstream.arrayBuffer(), {
+    status: upstream.status,
+    headers,
+  });
+}
+
 export async function fetchTextSource(url: string, fetcher: SourceFetch = fetch): Promise<string> {
   let response: Response;
   try {

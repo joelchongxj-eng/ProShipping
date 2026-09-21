@@ -1,5 +1,5 @@
 import { getBackendUrl } from "@/lib/config";
-import { caseAttachmentPath } from "@/lib/source-document";
+import { caseAttachmentPath, forwardCaseAttachmentRequest } from "@/lib/source-document";
 
 export const dynamic = "force-dynamic";
 
@@ -15,10 +15,8 @@ export async function GET(
   }
 
   const upstreamUrl = `${getBackendUrl()}${caseAttachmentPath(emailId, filename)}`;
-  let upstream: Response;
-
   try {
-    upstream = await fetch(upstreamUrl, { cache: "no-store" });
+    return await forwardCaseAttachmentRequest(upstreamUrl);
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
       console.error("Case attachment proxy could not reach the backend.", {
@@ -31,15 +29,4 @@ export async function GET(
       { status: 502 },
     );
   }
-
-  const headers = new Headers({ "Cache-Control": "no-store" });
-  const contentType = upstream.headers.get("content-type");
-  const contentDisposition = upstream.headers.get("content-disposition");
-  if (contentType) headers.set("Content-Type", contentType);
-  if (contentDisposition) headers.set("Content-Disposition", contentDisposition);
-
-  return new Response(await upstream.arrayBuffer(), {
-    status: upstream.status,
-    headers,
-  });
 }
