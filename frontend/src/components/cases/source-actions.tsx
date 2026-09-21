@@ -48,27 +48,29 @@ function getSources(sourceContext: EvidenceSourceContext): { si: SourceDocument 
 }
 
 export function SourceActions({ sourceContext, comparison }: { sourceContext: EvidenceSourceContext; comparison: FieldComparison }) {
-  const [side, setSide] = useState<"si" | "bl" | null>(null);
+  const [open, setOpen] = useState(false);
   const sources = getSources(sourceContext);
-  const source = side ? sources?.[side] : null;
-  const selectedValue = side ? comparison[side] : null;
-  const highlight: SourceHighlight | null = selectedValue ? {
-    evidenceText: selectedValue.source?.evidence_text || selectedValue.evidence || null,
-    locator: selectedValue.source?.locator ?? null,
-    page: selectedValue.source?.page ?? selectedValue.page ?? null,
-    reference: formatSourceLocator(selectedValue),
-  } : null;
+
+  function buildHighlight(side: "si" | "bl"): SourceHighlight | null {
+    const selectedValue = comparison[side];
+    return selectedValue ? {
+      evidenceText: selectedValue.source?.evidence_text || selectedValue.evidence || null,
+      locator: selectedValue.source?.locator ?? null,
+      page: selectedValue.source?.page ?? selectedValue.page ?? null,
+      reference: formatSourceLocator(selectedValue),
+    } : null;
+  }
+
+  const highlights = { si: buildHighlight("si"), bl: buildHighlight("bl") };
+  const hasSource = Boolean(sources?.si || sources?.bl);
+
   return (
     <div className="mt-3">
       <div className="flex flex-wrap gap-3">
-        {(["si", "bl"] as const).map((documentSide) => (
-          <div key={documentSide}>
-            <button type="button" disabled={!sources?.[documentSide]} onClick={() => setSide(documentSide)} aria-describedby={!sources?.[documentSide] ? `source-unavailable-${documentSide}` : undefined} className="min-h-10 rounded border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">View {documentSide === "si" ? "SI" : "Draft BL"} Source</button>
-            {!sources?.[documentSide] && <p id={`source-unavailable-${documentSide}`} className="mt-1 text-xs text-slate-500">Source document unavailable.</p>}
-          </div>
-        ))}
+        <button type="button" disabled={!hasSource} onClick={() => setOpen(true)} aria-describedby={!hasSource ? "source-comparison-unavailable" : undefined} className="min-h-10 rounded border border-slate-300 bg-white px-3 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">View Source Comparison</button>
       </div>
-      {side && source && <SourceViewer source={source} title={side === "si" ? "Shipping Instruction" : "Draft Bill of Lading"} highlight={highlight} onClose={() => setSide(null)} />}
+      {!hasSource && <p id="source-comparison-unavailable" className="mt-1 text-xs text-slate-500">Source documents unavailable.</p>}
+      {open && sources && <SourceViewer sources={sources} highlights={highlights} field={comparison.field} onClose={() => setOpen(false)} />}
     </div>
   );
 }

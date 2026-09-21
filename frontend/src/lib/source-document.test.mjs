@@ -38,18 +38,37 @@ test("TXT errors distinguish missing, invalid, server, network, and malformed re
   await assert.rejects(() => fetchTextSource("http://backend/source", async () => ({ ok: true, status: 200, headers: new Headers({ "Content-Type": "text/plain" }), text: async () => { throw new Error("decode"); } })), /could not be read/);
 });
 
-test("shared viewer keeps PDF behavior and reopens SI or BL from case metadata", async () => {
+test("source comparison composes both independently highlighted document panes", async () => {
   const viewer = await readFile(new URL("../components/cases/source-viewer.tsx", import.meta.url), "utf8");
   const actions = await readFile(new URL("../components/cases/source-actions.tsx", import.meta.url), "utf8");
   assert.match(viewer, /file=\{source\.url\}/);
-  assert.match(viewer, /Highlighted source evidence/);
+  assert.match(viewer, /SourceDocumentPane side="si"/);
+  assert.match(viewer, /SourceDocumentPane side="bl"/);
+  assert.match(viewer, /lg:grid-cols-2/);
+  assert.match(viewer, /Source Comparison:/);
+  assert.match(viewer, /Highlighted \$\{title\} source evidence/);
+  assert.match(viewer, /Loading \{title\} text document/);
   assert.match(viewer, /getPdfHighlightRect/);
   assert.match(viewer, /resolveTextHighlight/);
   assert.match(actions, /build\(sourceContext\.siAttachment\)/);
   assert.match(actions, /build\(sourceContext\.blAttachment\)/);
   assert.match(actions, /locator: selectedValue\.source\?\.locator/);
-  assert.match(actions, /onClose=\{\(\) => setSide\(null\)\}/);
+  assert.match(actions, /View Source Comparison/);
+  assert.doesNotMatch(actions, /View SI Source/);
+  assert.doesNotMatch(actions, /View Draft BL Source/);
+  assert.match(actions, /buildHighlight\("si"\)/);
+  assert.match(actions, /buildHighlight\("bl"\)/);
+  assert.match(actions, /onClose=\{\(\) => setOpen\(false\)\}/);
   assert.doesNotMatch(actions, /comparison\[documentSide\].*filename/);
+});
+
+test("source comparison keeps side failures isolated and missing sources visible", async () => {
+  const viewer = await readFile(new URL("../components/cases/source-viewer.tsx", import.meta.url), "utf8");
+  assert.match(viewer, /function SourceDocumentPane/);
+  assert.match(viewer, /Source document unavailable\./);
+  assert.match(viewer, /setError\(reason instanceof SourceDocumentError/);
+  assert.match(viewer, /source=\{sources\.si\} highlight=\{highlights\.si\}/);
+  assert.match(viewer, /source=\{sources\.bl\} highlight=\{highlights\.bl\}/);
 });
 
 test("TXT locator highlights the exact line-relative character range", () => {
