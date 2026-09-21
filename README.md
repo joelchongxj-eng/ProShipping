@@ -141,13 +141,68 @@ After processing, the system displays:
 6. Rerun the comparison if corrections were made.
 7. Generate and edit a message draft if follow-up communication is required.
 
-## Tech Stack
-- Backend: Python 3.11+, FastAPI, Uvicorn, and Pydantic
-- HTTP integration: httpx for the external Inbox service and optional Groq API calls
-- Document processing: pypdf and Pillow, with support for TXT, PDF, DOCX, and XLSX attachments in AI mode
-- Testing: pytest and pytest-asyncio
+---
 
+## Tech Stack
+
+- **Backend:** Python 3.11+, FastAPI, Uvicorn, and Pydantic
+- **HTTP requests:** httpx
+- **Document processing:** pypdf and Pillow
+- **Optional AI:** Groq API for email classification and document extraction
+- **Testing:** pytest and pytest-asyncio
+
+---
 
 ## System Architecture
-ProShipping’s FastAPI backend connects to an external Inbox service to retrieve emails and attachments. A case processor classifies each email and sends document comparison requests through the SI and draft BL verification pipeline. The pipeline extracts seven shipping fields, normalizes their values, compares them, and returns a case status with field-level evidence.
-By default, processing uses deterministic rules for TXT documents. Optional AI mode uses Groq for email classification and document extraction, including vision transcription for supported scanned PDFs. Python code validates the extracted evidence and decides the final comparison status. Cases are held in memory by the running API process.
+
+ProShipping uses a FastAPI backend connected to an external Inbox service. The backend retrieves emails and attachments, classifies each email, and processes requests to compare a Shipping Instruction (SI) with a draft Bill of Lading (BL).
+
+For each document pair, the backend extracts seven shipping fields, normalizes their values, and compares them. Optional AI processing supports TXT, PDF, DOCX, and XLSX documents. The backend determines the final case status and stores processed cases in memory while the API is running.
+
+---
+
+## Setup and Run Instructions
+
+**Prerequisites:** Python 3.11+ and access to the external Inbox service.
+
+1. Start the Inbox service on port `8080`, or set `INBOX_BASE_URL` to its URL.
+2. From the project root, run:
+
+   ```powershell
+   cd backend
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   python -m pip install -e ".[dev]"
+   python -m uvicorn app.main:app --reload --port 8001
+   ```
+
+3. Open `http://127.0.0.1:8001/docs` for the interactive API documentation.
+4. Call `POST /api/process-all` to process emails. Use `GET /api/cases` to view cases and `GET /api/submission` to retrieve submission results.
+
+To run the tests, execute `python -m pytest -q` from the `backend` directory.
+
+---
+
+## Environment Variables
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `INBOX_BASE_URL` | URL of the external Inbox service | `http://localhost:8080` |
+| `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000` |
+| `AI_ENABLED` | Set to `1` to enable AI processing | Disabled |
+| `GROQ_API_KEY` | Groq API key; required when AI is enabled | None |
+| `GROQ_MODEL` | Model for classification and field extraction | `openai/gpt-oss-20b` |
+| `GROQ_VISION_MODEL` | Model for scanned PDF transcription | `qwen/qwen3.8-27b` |
+
+Set environment variables before starting the backend. The application does not load `.env` files automatically.
+
+---
+
+## Main Workflow
+
+1. Retrieve emails from the external Inbox service.
+2. Classify each email as a BL comparison, SI request, invoice query, general message, or spam.
+3. For BL comparison requests, retrieve the SI and draft BL attachments.
+4. Extract and compare the shipper, consignee, notify party, port of loading, port of discharge, container count, and gross weight.
+5. Assign a `MATCH`, `MISMATCH`, `NEEDS_REVIEW`, or `FAILED` status.
+6. View field-level results through the case API or export results through the submission endpoint.
