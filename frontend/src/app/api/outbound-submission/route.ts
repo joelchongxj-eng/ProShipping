@@ -1,24 +1,15 @@
 import { getBackendUrl } from "@/lib/config";
 import { submissionActionPaths, submissionRemovePath, submissionResendPath } from "@/lib/submission-api-contract";
+import { forwardSubmissionRequest } from "@/lib/submission-proxy";
 
 export const dynamic = "force-dynamic";
 
-async function forward(upstreamUrl: string, method: "POST" | "DELETE") {
-  try {
-    const upstream = await fetch(upstreamUrl, { method, cache: "no-store" });
-    const headers = new Headers({ "Cache-Control": "no-store" });
-    const contentType = upstream.headers.get("content-type");
-    if (contentType) headers.set("Content-Type", contentType);
-    return new Response(await upstream.arrayBuffer(), { status: upstream.status, headers });
-  } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error("Outbound submission proxy could not reach the backend.", { upstreamUrl, error });
-    }
-    return Response.json(
-      { detail: "Backend unavailable. Check that the backend is running and try again." },
-      { status: 502 },
-    );
-  }
+function backendRequestUrl(path: string): string {
+  return new URL(path, `${getBackendUrl()}/`).toString();
+}
+
+export async function GET() {
+  return forwardSubmissionRequest(backendRequestUrl("/api/submission-workflow"), "GET");
 }
 
 export async function POST(request: Request) {
@@ -32,7 +23,7 @@ export async function POST(request: Request) {
     path = submissionResendPath(dispatchId);
   }
   if (!path) return Response.json({ detail: "Unknown submission action." }, { status: 404 });
-  return forward(`${getBackendUrl()}${path}`, "POST");
+  return forwardSubmissionRequest(backendRequestUrl(path), "POST");
 }
 
 export async function DELETE(request: Request) {
@@ -43,5 +34,5 @@ export async function DELETE(request: Request) {
     return Response.json({ detail: "A valid channel and target_id are required." }, { status: 422 });
   }
   const path = submissionRemovePath(channel, targetId);
-  return forward(`${getBackendUrl()}${path}`, "DELETE");
+  return forwardSubmissionRequest(backendRequestUrl(path), "DELETE");
 }

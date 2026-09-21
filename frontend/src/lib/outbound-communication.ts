@@ -38,6 +38,20 @@ export function deliveryStatusLabel(status: SubmissionDeliveryStatus): string {
   return status === "SENT" ? "Sent" : "Failed";
 }
 
+export const submissionRemoveTooltip = "Remove this case from the current submission list.";
+
+export function submissionRemoveLabel(targetId: string): string {
+  return `Remove case ${targetId} from the current submission list`;
+}
+
+export async function mutateSubmissionAndReload<T>(
+  mutation: () => Promise<unknown>,
+  reload: () => Promise<T>,
+): Promise<T> {
+  await mutation();
+  return reload();
+}
+
 export function shippingFieldLabel(field: string): string {
   const labels: Record<string, string> = {
     shipper: "Shipper",

@@ -286,6 +286,14 @@ export async function getSubmissionWorkflow(): Promise<SubmissionWorkflowRespons
   return data;
 }
 
+export async function refreshSubmissionWorkflow(): Promise<SubmissionWorkflowResponse> {
+  const data = await request("/api/outbound-submission", undefined, 15000, true);
+  if (!isSubmissionWorkflowResponse(data)) {
+    throw new ApiError("The backend returned an invalid submission workflow.", "invalid");
+  }
+  return data;
+}
+
 async function submissionAction(
   action: SubmissionActionName,
 ): Promise<SubmissionDispatch> {
@@ -335,6 +343,14 @@ export async function removeSubmissionItem(channel: "supervisor" | "sender", tar
     const detail = await getErrorDetail(response);
     throw new ApiError(detail ?? `Backend request failed (HTTP ${response.status}).`, "http", response.status);
   }
+}
+
+export function removeSupervisorSubmissionItem(targetId: string): Promise<void> {
+  return removeSubmissionItem("supervisor", targetId);
+}
+
+export function removeSenderSubmissionItem(targetId: string): Promise<void> {
+  return removeSubmissionItem("sender", targetId);
 }
 
 export function getCompetitionSubmissionUrl(): string {

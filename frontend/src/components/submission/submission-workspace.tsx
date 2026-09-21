@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import {
   ApiError,
-  removeSubmissionItem,
+  refreshSubmissionWorkflow,
+  removeSenderSubmissionItem,
+  removeSupervisorSubmissionItem,
   resendSubmissionDispatch,
   sendSenderSubmission,
   submitSupervisorSubmission,
@@ -18,6 +20,9 @@ import {
   deliveryStatusLabel,
   dispatchCanBeResent,
   shippingFieldLabel,
+  mutateSubmissionAndReload,
+  submissionRemoveLabel,
+  submissionRemoveTooltip,
   submissionActionDisabled,
   submissionActionLabel,
   submissionSectionLabel,
@@ -143,11 +148,10 @@ function SubmissionSectionPanel({
         </span>
       </div>
 
-      <dl className="grid grid-cols-2 gap-x-5 gap-y-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-5 gap-y-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs sm:grid-cols-3">
         <div><dt className="text-slate-500">Active items</dt><dd className="mt-1 font-semibold tabular-nums text-slate-900">{section.items.length}</dd></div>
-        <div><dt className="text-slate-500">Added since send</dt><dd className="mt-1 font-semibold tabular-nums text-slate-900">{section.added_since_last_send}</dd></div>
-        <div><dt className="text-slate-500">Removed since send</dt><dd className="mt-1 font-semibold tabular-nums text-slate-900">{section.removed_since_last_send}</dd></div>
         <div><dt className="text-slate-500">Last sent</dt><dd className="mt-1 font-medium text-slate-900">{formatTimestamp(section.last_sent_at)}</dd></div>
+        <div><dt className="text-slate-500">Dispatches</dt><dd className="mt-1 font-semibold tabular-nums text-slate-900">{section.dispatches.length}</dd></div>
       </dl>
 
       {section.items.length === 0 ? (
@@ -175,16 +179,25 @@ function SubmissionSectionPanel({
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Link href={buildSubmissionTargetHref(item.target_type, item.target_id)} className="inline-flex min-h-9 items-center rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-800 hover:bg-slate-50">View Case</Link>
-                  <button
-                    type="button"
-                    disabled={pendingAction !== null}
-                    onClick={() => onRemove(channel, item.target_id)}
-                    aria-label={`Remove ${item.target_id} from ${title}`}
-                    title="Remove from this submission list"
-                    className="inline-flex size-9 items-center justify-center rounded border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {pendingAction === `remove:${channel}:${item.target_id}` ? "…" : "X"}
-                  </button>
+                  <span className="group relative inline-flex">
+                    <button
+                      type="button"
+                      disabled={pendingAction === `remove:${channel}:${item.target_id}`}
+                      onClick={() => onRemove(channel, item.target_id)}
+                      aria-label={submissionRemoveLabel(item.target_id)}
+                      aria-describedby={`remove-${channel}-${item.target_id}-tooltip`}
+                      className="inline-flex size-9 items-center justify-center rounded border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {pendingAction === `remove:${channel}:${item.target_id}` ? "…" : "X"}
+                    </button>
+                    <span
+                      id={`remove-${channel}-${item.target_id}-tooltip`}
+                      role="tooltip"
+                      className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 w-56 rounded bg-slate-950 px-2.5 py-2 text-xs font-normal leading-4 text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                    >
+                      {submissionRemoveTooltip}
+                    </span>
+                  </span>
                 </div>
               </div>
             </li>
@@ -197,7 +210,7 @@ function SubmissionSectionPanel({
           {section.status === "SUBMITTED"
             ? supervisor ? "Submitted to Supervisor." : "Sender follow-up sent."
             : section.status === "UPDATE_REQUIRED"
-              ? `${section.added_since_last_send} added and ${section.removed_since_last_send} removed since the last successful send.`
+              ? `${section.items.length} case${section.items.length === 1 ? "" : "s"} waiting to be sent.`
               : "The backend builds and sends the fixed email template."}
         </p>
         {actionLabel && (
@@ -224,15 +237,19 @@ function SubmissionSectionPanel({
 
 export function SubmissionWorkspace({ workflow, competitionSubmissionUrl }: { workflow: SubmissionWorkflowResponse; competitionSubmissionUrl: string }) {
   const router = useRouter();
+  const [currentWorkflow, setCurrentWorkflow] = useState(workflow);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
+
+  useEffect(() => setCurrentWorkflow(workflow), [workflow]);
 
   async function runAction(key: string, action: () => Promise<unknown>) {
     if (pendingAction) return;
     setPendingAction(key);
     setActionError("");
     try {
-      await action();
+      const refreshed = await mutateSubmissionAndReload(action, refreshSubmissionWorkflow);
+      setCurrentWorkflow(refreshed);
       router.refresh();
     } catch (error) {
       setActionError(error instanceof ApiError ? error.message : "The submission action could not be completed.");
@@ -249,7 +266,10 @@ export function SubmissionWorkspace({ workflow, competitionSubmissionUrl }: { wo
   }
 
   function handleRemove(channel: "supervisor" | "sender", targetId: string) {
-    void runAction(`remove:${channel}:${targetId}`, () => removeSubmissionItem(channel, targetId));
+    const remove = channel === "supervisor"
+      ? removeSupervisorSubmissionItem
+      : removeSenderSubmissionItem;
+    void runAction(`remove:${channel}:${targetId}`, () => remove(targetId));
   }
 
   function handleResend(dispatchId: string) {
@@ -259,8 +279,8 @@ export function SubmissionWorkspace({ workflow, competitionSubmissionUrl }: { wo
   return (
     <div className="space-y-5">
       {actionError && <p role="alert" className="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">{actionError}</p>}
-      <SubmissionSectionPanel channel="supervisor" section={workflow.supervisor} pendingAction={pendingAction} onRemove={handleRemove} onPrimaryAction={handlePrimaryAction} onResend={handleResend} />
-      <SubmissionSectionPanel channel="sender" section={workflow.sender_follow_up} pendingAction={pendingAction} onRemove={handleRemove} onPrimaryAction={handlePrimaryAction} onResend={handleResend} />
+      <SubmissionSectionPanel channel="supervisor" section={currentWorkflow.supervisor} pendingAction={pendingAction} onRemove={handleRemove} onPrimaryAction={handlePrimaryAction} onResend={handleResend} />
+      <SubmissionSectionPanel channel="sender" section={currentWorkflow.sender_follow_up} pendingAction={pendingAction} onRemove={handleRemove} onPrimaryAction={handlePrimaryAction} onResend={handleResend} />
       <section aria-labelledby="competition-submission-title" className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>

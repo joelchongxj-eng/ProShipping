@@ -140,20 +140,19 @@ class SubmissionWorkflowService:
         if not snapshots:
             raise SubmissionWorkflowError(409, "No successful supervisor submission exists.")
         recipient = next(iter(snapshots))
-        current = self.store.active(SubmissionChannel.SUPERVISOR)
-        added, removed = self._delta(current, snapshots[recipient])
-        if not added and not removed:
+        pending = self.store.active(SubmissionChannel.SUPERVISOR)
+        if not pending:
             raise SubmissionWorkflowError(409, "Supervisor submission has no changes.")
         subject = "Update to Supervisor Escalation"
-        body = self._supervisor_update_body(added, removed)
+        body = self._supervisor_update_body(pending)
         return await self._dispatch(
             SubmissionChannel.SUPERVISOR,
             SubmissionDispatchType.UPDATE,
             {recipient: (subject, body)},
-            {recipient: current},
-            current,
-            [item.target_id for item in added],
-            [item.target_id for item in removed],
+            {recipient: pending},
+            pending,
+            [item.target_id for item in pending],
+            [],
         )
 
     async def sender_send(self) -> SubmissionDispatch:
@@ -200,24 +199,19 @@ class SubmissionWorkflowService:
                 409,
                 "Failed sender deliveries must be resent before sending an update.",
             )
-        current = self._sender_groups(self.store.active(SubmissionChannel.SENDER))
+        pending = self._sender_groups(self.store.active(SubmissionChannel.SENDER))
+        if not pending:
+            raise SubmissionWorkflowError(409, "Sender follow-up has no changes.")
         messages: dict[str, tuple[str, str]] = {}
         intended: dict[str, list[SubmissionItem]] = {}
         all_added: list[SubmissionItem] = []
-        all_removed: list[SubmissionItem] = []
-        for recipient in sorted(set(current) | set(snapshots)):
-            added, removed = self._delta(current.get(recipient, []), snapshots.get(recipient, []))
-            if not added and not removed:
-                continue
+        for recipient, added in pending.items():
             messages[recipient] = (
                 "Update: Shipping Document Clarification Required",
-                self._sender_update_body(added, removed),
+                self._sender_update_body(added),
             )
-            intended[recipient] = current.get(recipient, [])
+            intended[recipient] = added
             all_added.extend(added)
-            all_removed.extend(removed)
-        if not messages:
-            raise SubmissionWorkflowError(409, "Sender follow-up has no changes.")
         items = self.store.active(SubmissionChannel.SENDER)
         return await self._dispatch(
             SubmissionChannel.SENDER,
@@ -226,7 +220,7 @@ class SubmissionWorkflowService:
             intended,
             items,
             [item.target_id for item in all_added],
-            [item.target_id for item in all_removed],
+            [],
         )
 
     async def resend(self, dispatch_id: UUID) -> SubmissionDispatch:
@@ -299,6 +293,7 @@ class SubmissionWorkflowService:
             if outcome.status is SubmissionDeliveryStatus.SENT and recipient:
                 snapshot = intended_snapshots.get(recipient, [])
                 self.store.set_successful_snapshot(channel, recipient, snapshot, outcome.attempted_at)
+                self.store.complete(channel, snapshot)
                 successful_ids.update(item.target_id for item in snapshot)
         completed = datetime.now(UTC)
         dispatch = SubmissionDispatch(
@@ -356,61 +351,20 @@ class SubmissionWorkflowService:
 
     def _section(self, channel: SubmissionChannel) -> SubmissionSection:
         items = self.store.active(channel)
-        current = self._recipient_map(channel, items)
-        snapshots = self.store.snapshots(channel)
-        current_ids = {item.target_id for group in current.values() for item in group}
-        snapshot_ids = {item.target_id for group in snapshots.values() for item in group}
         sent_times = self.store.successful_times(channel)
         if not sent_times:
             status = SubmissionSectionStatus.DRAFT
-        elif self._maps_equal(current, snapshots):
-            status = SubmissionSectionStatus.SUBMITTED
-        else:
+        elif items:
             status = SubmissionSectionStatus.UPDATE_REQUIRED
+        else:
+            status = SubmissionSectionStatus.SUBMITTED
         return SubmissionSection(
             status=status,
             items=items,
-            added_since_last_send=len(current_ids - snapshot_ids),
-            removed_since_last_send=len(snapshot_ids - current_ids),
+            added_since_last_send=len(items),
+            removed_since_last_send=0,
             last_sent_at=max(sent_times) if sent_times else None,
             dispatches=self.store.dispatches(channel),
-        )
-
-    def _recipient_map(
-        self,
-        channel: SubmissionChannel,
-        items: list[SubmissionItem],
-    ) -> dict[str, list[SubmissionItem]]:
-        if channel is SubmissionChannel.SENDER:
-            return self._sender_groups(items)
-        recipient = self.supervisor_email_lookup()
-        return {recipient: items} if recipient else {}
-
-    @staticmethod
-    def _maps_equal(
-        current: dict[str, list[SubmissionItem]],
-        snapshots: dict[str, list[SubmissionItem]],
-    ) -> bool:
-        current = {recipient: items for recipient, items in current.items() if items}
-        snapshots = {recipient: items for recipient, items in snapshots.items() if items}
-        if set(current) != set(snapshots):
-            return False
-        return all(
-            {item.target_id for item in current[recipient]}
-            == {item.target_id for item in snapshots[recipient]}
-            for recipient in current
-        )
-
-    @staticmethod
-    def _delta(
-        current: list[SubmissionItem],
-        previous: list[SubmissionItem],
-    ) -> tuple[list[SubmissionItem], list[SubmissionItem]]:
-        current_by_id = {item.target_id: item for item in current}
-        previous_by_id = {item.target_id: item for item in previous}
-        return (
-            [current_by_id[key] for key in sorted(current_by_id.keys() - previous_by_id.keys())],
-            [previous_by_id[key] for key in sorted(previous_by_id.keys() - current_by_id.keys())],
         )
 
     @staticmethod
@@ -463,16 +417,10 @@ class SubmissionWorkflowService:
     def _supervisor_update_body(
         cls,
         added: list[SubmissionItem],
-        removed: list[SubmissionItem],
     ) -> str:
         lines = ["New cases:"]
-        if added:
-            for item in added:
-                lines.extend(cls._item_lines(item) + [""])
-        else:
-            lines.append("None")
-        lines.append("Removed from active escalation:")
-        lines.extend(item.target_id for item in removed) if removed else lines.append("None")
+        for item in added:
+            lines.extend(cls._item_lines(item) + [""])
         return "\n".join(lines)
 
     @classmethod
@@ -492,14 +440,8 @@ class SubmissionWorkflowService:
     def _sender_update_body(
         cls,
         added: list[SubmissionItem],
-        removed: list[SubmissionItem],
     ) -> str:
         lines = ["New follow-up cases:"]
-        if added:
-            for item in added:
-                lines.extend(cls._item_lines(item) + [""])
-        else:
-            lines.append("None")
-        lines.append("Removed from active follow-up:")
-        lines.extend(item.target_id for item in removed) if removed else lines.append("None")
+        for item in added:
+            lines.extend(cls._item_lines(item) + [""])
         return "\n".join(lines)

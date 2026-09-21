@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 import app.main as main
 from app.models import CaseRecord, EmailCategory, EmailRecord
 from app.services.document_pair import compare_document_pair
+from app.submission.models import SubmissionChannel
 
 
 SI_TEXT = b"""Shipper: ACME EXPORT LTD
@@ -172,6 +173,21 @@ def test_remove_supervisor_item_preserves_review_history() -> None:
     assert [review["action"] for review in reviews] == ["ESCALATE"]
 
 
+def test_successful_dispatch_completion_preserves_newer_review_for_same_case() -> None:
+    seed_case("email_concurrent")
+    client = TestClient(main.app)
+    escalate(client, "email_concurrent")
+    original_item = main.submission_workflow_store.active(SubmissionChannel.SUPERVISOR)[0]
+
+    escalate(client, "email_concurrent")
+    replacement_item = main.submission_workflow_store.active(SubmissionChannel.SUPERVISOR)[0]
+    main.submission_workflow_store.complete(SubmissionChannel.SUPERVISOR, [original_item])
+
+    remaining = main.submission_workflow_store.active(SubmissionChannel.SUPERVISOR)
+    assert replacement_item.source_review_id != original_item.source_review_id
+    assert [item.source_review_id for item in remaining] == [replacement_item.source_review_id]
+
+
 def test_supervisor_submit_sends_one_batch_and_stores_snapshot(clear_workflow_state) -> None:
     client = TestClient(main.app)
     for email_id in ("email_101", "email_205"):
@@ -183,6 +199,8 @@ def test_supervisor_submit_sends_one_batch_and_stores_snapshot(clear_workflow_st
 
     assert sent.status_code == 200
     assert workflow["status"] == "SUBMITTED"
+    assert workflow["items"] == []
+    assert len(workflow["dispatches"]) == 1
     assert len(clear_workflow_state) == 1
     recipient, subject, body = clear_workflow_state[0]
     assert recipient == "supervisor@example.com"
@@ -191,14 +209,13 @@ def test_supervisor_submit_sends_one_batch_and_stores_snapshot(clear_workflow_st
     assert set(sent.json()["successful_snapshot_target_ids"]) == {"email_101", "email_205"}
 
 
-def test_supervisor_update_tracks_added_and_removed_cases(clear_workflow_state) -> None:
+def test_supervisor_update_sends_only_new_active_cases(clear_workflow_state) -> None:
     client = TestClient(main.app)
     seed_case("email_old")
     escalate(client, "email_old")
     client.post("/api/submission/supervisor/submit")
     seed_case("email_new")
     escalate(client, "email_new")
-    client.delete("/api/submission-workflow/supervisor/email_old")
 
     before = client.get("/api/submission-workflow").json()["supervisor"]
     updated = client.post("/api/submission/supervisor/update")
@@ -206,11 +223,14 @@ def test_supervisor_update_tracks_added_and_removed_cases(clear_workflow_state) 
 
     assert before["status"] == "UPDATE_REQUIRED"
     assert before["added_since_last_send"] == 1
-    assert before["removed_since_last_send"] == 1
+    assert before["removed_since_last_send"] == 0
+    assert [item["target_id"] for item in before["items"]] == ["email_new"]
     assert updated.status_code == 200
     assert updated.json()["added_target_ids"] == ["email_new"]
-    assert updated.json()["removed_target_ids"] == ["email_old"]
+    assert updated.json()["removed_target_ids"] == []
     assert after["status"] == "SUBMITTED"
+    assert after["items"] == []
+    assert len(after["dispatches"]) == 2
     assert clear_workflow_state[-1][1] == "Update to Supervisor Escalation"
 
 
@@ -227,13 +247,17 @@ def test_failed_supervisor_submit_is_not_submitted_and_can_be_resent() -> None:
     assert failed.json()["outcomes"][0]["status"] == "FAILED"
     assert "secret" not in (failed.json()["outcomes"][0]["error_reason"] or "")
     assert workflow["status"] == "DRAFT"
+    assert [item["target_id"] for item in workflow["items"]] == ["email_failure"]
 
     messages: list[tuple[str, str, str]] = []
     main.submission_workflow_service.sender_factory = lambda recipient: RecordingSender(recipient, messages)
     resent = client.post(f"/api/submission/dispatches/{failed.json()['dispatch_id']}/resend")
     assert resent.status_code == 200
     assert resent.json()["dispatch_type"] == "RESEND"
-    assert client.get("/api/submission-workflow").json()["supervisor"]["status"] == "SUBMITTED"
+    supervisor = client.get("/api/submission-workflow").json()["supervisor"]
+    assert supervisor["status"] == "SUBMITTED"
+    assert supervisor["items"] == []
+    assert len(supervisor["dispatches"]) == 2
     assert len(client.get("/api/cases/email_failure/reviews").json()["reviews"]) == 1
 
 
@@ -272,7 +296,10 @@ def test_sender_send_groups_and_isolates_recipients(clear_workflow_state) -> Non
     assert "email_b1" not in by_recipient["a@example.com"]
     assert "email_b1" in by_recipient["b@example.com"]
     assert "email_a1" not in by_recipient["b@example.com"]
-    assert client.get("/api/submission-workflow").json()["sender_follow_up"]["status"] == "SUBMITTED"
+    sender_section = client.get("/api/submission-workflow").json()["sender_follow_up"]
+    assert sender_section["status"] == "SUBMITTED"
+    assert sender_section["items"] == []
+    assert len(sender_section["dispatches"]) == 1
 
 
 def test_sender_demo_recipient_preserves_original_sender_and_redirects_delivery(
@@ -291,7 +318,8 @@ def test_sender_demo_recipient_preserves_original_sender_and_redirects_delivery(
     assert sent.status_code == 200
     assert sent.json()["outcomes"][0]["recipient"] == "controlled-demo@example.com"
     assert clear_workflow_state[0][0] == "controlled-demo@example.com"
-    assert workflow["items"][0]["sender_email"] == "original-sender@example.com"
+    assert workflow["items"] == []
+    assert sent.json()["item_snapshot"][0]["sender_email"] == "original-sender@example.com"
     assert "SMTP_PASSWORD" not in str(sent.json())
 
 
@@ -320,6 +348,7 @@ def test_sender_demo_recipient_failed_dispatch_can_be_resent(
     assert resent.json()["outcomes"][0]["recipient"] == "controlled-demo@example.com"
     assert resent.json()["outcomes"][0]["status"] == "SENT"
     assert clear_workflow_state[0][0] == "controlled-demo@example.com"
+    assert client.get("/api/submission-workflow").json()["sender_follow_up"]["items"] == []
 
 
 def test_partial_sender_failure_is_update_required(clear_workflow_state) -> None:
@@ -342,6 +371,7 @@ def test_partial_sender_failure_is_update_required(clear_workflow_state) -> None
         "b@example.com": "FAILED",
     }
     assert section["status"] == "UPDATE_REQUIRED"
+    assert [item["target_id"] for item in section["items"]] == ["email_b"]
 
     update = client.post("/api/submission/sender/update")
     assert update.status_code == 409
@@ -350,14 +380,13 @@ def test_partial_sender_failure_is_update_required(clear_workflow_state) -> None
     }
 
 
-def test_sender_update_reports_only_relevant_recipient_changes(clear_workflow_state) -> None:
+def test_sender_update_sends_only_new_active_recipient_items(clear_workflow_state) -> None:
     client = TestClient(main.app)
     seed_case("email_a", "a@example.com")
     request_information(client, "email_a")
     seed_case("email_b", "b@example.com")
     request_information(client, "email_b")
     client.post("/api/submission/sender/send")
-    client.delete("/api/submission-workflow/sender/email_a")
     seed_case("email_b2", "b@example.com")
     request_information(client, "email_b2")
     clear_workflow_state.clear()
@@ -366,23 +395,30 @@ def test_sender_update_reports_only_relevant_recipient_changes(clear_workflow_st
 
     assert updated.status_code == 200
     by_recipient = {recipient: body for recipient, _, body in clear_workflow_state}
-    assert "Removed" in by_recipient["a@example.com"] and "email_a" in by_recipient["a@example.com"]
+    assert set(by_recipient) == {"b@example.com"}
     assert "New" in by_recipient["b@example.com"] and "email_b2" in by_recipient["b@example.com"]
-    assert "email_b2" not in by_recipient["a@example.com"]
+    assert updated.json()["added_target_ids"] == ["email_b2"]
+    assert updated.json()["removed_target_ids"] == []
+    section = client.get("/api/submission-workflow").json()["sender_follow_up"]
+    assert section["status"] == "SUBMITTED"
+    assert section["items"] == []
 
 
-def test_sender_update_after_removing_all_items_returns_to_submitted() -> None:
+def test_removing_only_pending_sender_item_returns_to_submitted() -> None:
     seed_case("email_only", "only@example.com")
     client = TestClient(main.app)
     request_information(client, "email_only")
     client.post("/api/submission/sender/send")
-    client.delete("/api/submission-workflow/sender/email_only")
+    seed_case("email_pending", "only@example.com")
+    request_information(client, "email_pending")
 
-    updated = client.post("/api/submission/sender/update")
+    before = client.get("/api/submission-workflow").json()["sender_follow_up"]
+    removed = client.delete("/api/submission-workflow/sender/email_pending")
+
     section = client.get("/api/submission-workflow").json()["sender_follow_up"]
 
-    assert updated.status_code == 200
-    assert updated.json()["removed_target_ids"] == ["email_only"]
+    assert before["status"] == "UPDATE_REQUIRED"
+    assert removed.status_code == 204
     assert section["items"] == []
     assert section["status"] == "SUBMITTED"
 
@@ -405,6 +441,10 @@ def test_not_configured_supervisor_dispatch_can_be_resent_after_configuration() 
 
     failed = client.post("/api/submission/supervisor/submit")
     assert failed.json()["outcomes"][0]["status"] == "NOT_CONFIGURED"
+    assert [
+        item["target_id"]
+        for item in client.get("/api/submission-workflow").json()["supervisor"]["items"]
+    ] == ["email_not_configured"]
 
     messages: list[tuple[str, str, str]] = []
     main.submission_workflow_service.supervisor_email_lookup = lambda: "supervisor@example.com"
@@ -414,7 +454,9 @@ def test_not_configured_supervisor_dispatch_can_be_resent_after_configuration() 
     assert resent.status_code == 200
     assert resent.json()["outcomes"][0]["status"] == "SENT"
     assert messages[0][0] == "supervisor@example.com"
-    assert client.get("/api/submission-workflow").json()["supervisor"]["status"] == "SUBMITTED"
+    supervisor = client.get("/api/submission-workflow").json()["supervisor"]
+    assert supervisor["status"] == "SUBMITTED"
+    assert supervisor["items"] == []
 
 
 def test_sender_remove_preserves_request_information_review() -> None:

@@ -42,6 +42,17 @@ class SubmissionWorkflowStore:
             del self._active[key]
             return True
 
+    def complete(self, channel: SubmissionChannel, items: list[SubmissionItem]) -> None:
+        """Remove only the exact item versions confirmed by a successful delivery."""
+        with self._lock:
+            for item in items:
+                key = (channel, item.target_id)
+                current = self._active.get(key)
+                if current is None or current.source_review_id != item.source_review_id:
+                    continue
+                self._item_events.setdefault(key, []).append(None)
+                del self._active[key]
+
     def active(self, channel: SubmissionChannel) -> list[SubmissionItem]:
         with self._lock:
             return sorted(
