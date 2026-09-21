@@ -304,7 +304,7 @@ async def get_upload_attachment(
 @app.post("/api/process-all")
 async def process_all() -> dict[str, object]:
     try:
-        processed = await processor.process_all()
+        processed = await processor.process_all(allow_ai_fallback=False)
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Inbox service unavailable: {exc}") from exc
     cases.clear()

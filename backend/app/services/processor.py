@@ -39,11 +39,30 @@ class CaseProcessor:
         self.ai_service = ai_service
         self.semantic_ai_service = semantic_ai_service
 
-    async def process_all(self) -> list[CaseRecord]:
+    async def process_all(
+        self,
+        *,
+        allow_ai_fallback: bool = True,
+    ) -> list[CaseRecord]:
         emails = await self.inbox.list_emails()
-        return list(await asyncio.gather(*(self.process_email(email) for email in emails)))
+        return list(
+            await asyncio.gather(
+                *(
+                    self.process_email(
+                        email,
+                        allow_ai_fallback=allow_ai_fallback,
+                    )
+                    for email in emails
+                )
+            )
+        )
 
-    async def process_email(self, email: EmailRecord) -> CaseRecord:
+    async def process_email(
+        self,
+        email: EmailRecord,
+        *,
+        allow_ai_fallback: bool = True,
+    ) -> CaseRecord:
         async with self._semaphore:
             category = classify_email(email)
             if category is not EmailCategory.BL_COMPARISON:
@@ -69,8 +88,8 @@ class CaseProcessor:
                 si_content,
                 bl_path,
                 bl_content,
-                self.ai_service,
-                self.semantic_ai_service,
+                self.ai_service if allow_ai_fallback else None,
+                self.semantic_ai_service if allow_ai_fallback else None,
             )
             return CaseRecord(
                 email=email,
