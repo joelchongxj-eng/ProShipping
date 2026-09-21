@@ -1202,3 +1202,69 @@ Current limitations include:
 * Full user authentication and authorization are not yet available.
 * AI accuracy has not been comprehensively evaluated across all 520 records.
 * Broader regression and production-scale testing are still required.
+
+---
+
+## Limitations
+
+Although ProShipping successfully demonstrates the main SI–BL verification workflow, the current prototype still has several limitations.
+
+### 1. In-Memory Data Storage
+
+The current system mainly stores active cases, review records, retry information, escalation records, and submission data in application memory. This means that some workflow data may be lost when the backend server is restarted.
+
+A persistent database would be required for production use to ensure that historical records and workflow states remain available.
+
+### 2. Limited Authentication and Access Control
+
+The current prototype does not include a complete user authentication and authorization system.
+
+In a production environment, features such as secure login, user roles, access permissions, and audit trails would be required, especially for Human Review, escalation, and submission actions.
+
+### 3. AI Accuracy Is Not Fully Evaluated
+
+AI-assisted extraction and semantic comparison are used for selected cases, but their accuracy has not been comprehensively measured across the entire 520-email dataset.
+
+OCR errors, incorrect field extraction, malformed responses, and ambiguous document content may still affect AI-generated results. For this reason, uncertain cases are routed to Human Review instead of being automatically accepted.
+
+### 4. Dependence on External Services
+
+Some ProShipping functions depend on external services, including the Inbox service and Groq API.
+
+If these services are unavailable, rate-limited, or misconfigured, certain functions such as email retrieval, AI extraction, OCR, or semantic comparison may be temporarily unavailable.
+
+### 5. Scanned and Poor-Quality Documents
+
+Image-only PDFs and low-quality scanned documents are more difficult to process than text-based files.
+
+Blurred images, unusual layouts, handwritten information, low resolution, or OCR errors can reduce extraction reliability and may require manual review.
+
+### 6. Limited Document Format Coverage
+
+The current system supports common formats such as TXT, PDF, DOCX, and XLSX.
+
+Other formats or highly customized shipping document layouts may require additional parsing logic before they can be processed reliably.
+
+### 7. Runtime and Performance Constraints
+
+The current prototype is designed for demonstration and testing rather than large-scale production processing.
+
+Processing many documents at the same time, especially when AI or OCR is involved, may increase response time or trigger API rate limits. The current implementation does not yet include full background job processing, queue management, or distributed processing.
+
+### 8. Limited Production Monitoring
+
+The prototype currently has limited production-level monitoring, logging, and alerting.
+
+A production deployment would require centralized logs, performance monitoring, failure alerts, request tracing, and service health monitoring to support reliable operation.
+
+### 9. Manual Review Is Still Required
+
+ProShipping reduces the amount of manual comparison work, but it does not completely remove the need for human verification.
+
+Cases containing unclear values, damaged documents, extraction uncertainty, or conflicting information may still require Human Review before a final decision is made.
+
+### 10. Prototype-Level Deployment
+
+The current system demonstrates the complete workflow but is not yet a fully production-ready platform.
+
+Further work would be required for persistent storage, user authentication, security hardening, scalable deployment, comprehensive testing, monitoring, and broader accuracy evaluation.
