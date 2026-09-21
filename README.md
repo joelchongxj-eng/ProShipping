@@ -862,3 +862,90 @@ npm start
 
 ---
 
+## 🔐 Environment Variables
+
+ProShipping uses environment variables to configure its backend services, optional AI features, frontend API connection, upload handling, and email-delivery functions.
+
+The FastAPI backend loads environment variables from a local `.env` file using `python-dotenv`.
+
+### Core Backend Configuration
+
+| Variable             | Description                                                            | Default                 |
+| -------------------- | ---------------------------------------------------------------------- | ----------------------- |
+| `INBOX_BASE_URL`     | Base URL of the external Inbox service                                 | `http://localhost:8080` |
+| `CORS_ORIGINS`       | Comma-separated list of frontend origins allowed to access the backend | `http://localhost:3000` |
+| `APP_ENV`            | Application environment such as `development` or `production`          | `development`           |
+| `UPLOAD_TTL_SECONDS` | Amount of time uploaded comparison sessions remain available           | `3600`                  |
+| `MAX_UPLOAD_BYTES`   | Maximum permitted size of an uploaded document                         | `10485760` (10 MB)      |
+
+### AI Configuration
+
+| Variable              | Description                                                        | Default              |
+| --------------------- | ------------------------------------------------------------------ | -------------------- |
+| `AI_ENABLED`          | Set to `1` to enable AI-assisted document processing               | `0`                  |
+| `SEMANTIC_AI_ENABLED` | Set to `1` to enable AI-assisted semantic equivalence checking     | `0`                  |
+| `GROQ_API_KEY`        | Groq API key required when AI functionality is enabled             | None                 |
+| `GROQ_MODEL`          | Groq model used for classification and structured field extraction | `openai/gpt-oss-20b` |
+| `GROQ_VISION_MODEL`   | Vision model used for scanned-document transcription               | `qwen/qwen3.8-27b`   |
+
+Example:
+
+```dotenv
+INBOX_BASE_URL=http://localhost:8080
+CORS_ORIGINS=http://localhost:3000
+
+AI_ENABLED=1
+SEMANTIC_AI_ENABLED=1
+
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=openai/gpt-oss-20b
+GROQ_VISION_MODEL=qwen/qwen3.8-27b
+```
+
+### Email Delivery Configuration
+
+ProShipping supports **SMTP** or **HTTPS API-based email delivery** for follow-up and escalation workflows.
+
+Common configuration:
+
+| Variable                         | Description                                                              |
+| -------------------------------- | ------------------------------------------------------------------------ |
+| `EMAIL_PROVIDER`                 | Email provider mode: `smtp` or `https`                                   |
+| `EMAIL_FROM_ADDRESS`             | Address used to send outgoing messages                                   |
+| `EMAIL_DELIVERY_TIMEOUT_SECONDS` | Timeout for outgoing email delivery                                      |
+| `SUPERVISOR_EMAIL`               | Supervisor destination used by escalation workflows                      |
+| `OUTBOUND_EMAIL_AUTH_TOKEN`      | Authentication token required for outbound email functions in production |
+
+For SMTP:
+
+```dotenv
+EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_FROM_EMAIL=example@example.com
+SMTP_USERNAME=your_username
+SMTP_PASSWORD=your_password
+SMTP_USE_TLS=1
+```
+
+For HTTPS-based email delivery:
+
+```dotenv
+EMAIL_PROVIDER=https
+EMAIL_API_KEY=your_api_key
+EMAIL_FROM_ADDRESS=example@example.com
+EMAIL_API_BASE_URL=https://api.resend.com
+```
+
+Do **not** commit real API keys, passwords, or authentication tokens to GitHub.
+
+### Frontend Configuration
+
+Create `frontend/.env.local` and configure the backend URL:
+
+```dotenv
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8001
+```
+
+---
+
