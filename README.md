@@ -735,12 +735,168 @@ ProShipping follows a client-server architecture consisting of a **Next.js front
 <img width="1280" height="853" alt="image" src="https://github.com/user-attachments/assets/f58d3f37-734d-4e5c-82bc-9e351ffcba40" />
 
 
-
 The frontend communicates with the backend through REST API endpoints. The backend is responsible for retrieving inbox data, accepting manually uploaded document pairs, extracting shipping information, normalizing values, comparing the Shipping Instruction against the draft Bill of Lading, and determining the final verification status.
 
 For inbox-based processing, the backend connects to an external Inbox service to retrieve emails and their attachments. AI processing can optionally be enabled through Groq to support more complex document extraction, scanned documents, email classification, and semantic equivalence checking.
 
 Processed cases, uploaded comparison sessions, human-review records, retry records, escalation records, and submission workflow data are currently managed by backend services during application execution.
+
+---
+
+## ⚙️ Implementation Details
+
+### Backend Structure
+
+The backend is implemented using **FastAPI** and organized around API routes, service modules, data models, and processing utilities.
+
+FastAPI handles incoming REST requests, while **Pydantic** models are used to validate request and response data. Asynchronous HTTP communication with external services is handled using **httpx**.
+
+The backend is responsible for coordinating document processing, comparison logic, review state, retry operations, submission workflows, and outbound communication.
+
+### Document Parsing Layer
+
+Different document formats are handled using format-specific libraries:
+
+* **PyMuPDF** and **pypdf** for PDF extraction
+* **python-docx** for DOCX files
+* **openpyxl** for XLSX files
+* **Pillow** for image-based processing
+* Native text reading for TXT files
+
+The parsing layer first attempts deterministic text extraction. If usable text cannot be obtained from scanned or image-only documents, AI-assisted processing can be used as a fallback.
+
+### Data Normalization
+
+Extracted values are converted into a consistent internal representation before comparison.
+
+Normalization is applied to reduce differences caused by:
+
+* Capitalization
+* Extra spaces
+* Punctuation
+* Alternative field labels
+* Number formatting
+* Weight formatting
+* Common textual variations
+
+This allows the comparison engine to evaluate the actual meaning of extracted values rather than relying only on exact string matching.
+
+### Comparison Engine
+
+The comparison engine evaluates normalized SI and Draft BL values field by field.
+
+Deterministic comparison is used whenever possible. Semantic AI comparison is only used when the system cannot confidently determine equivalence using rule-based methods.
+
+AI output is validated before use, and uncertain results are not automatically converted into successful matches.
+
+The comparison layer keeps the original extracted values, normalized values, comparison method, and result separate so that the decision process remains traceable.
+
+### AI Integration
+
+Groq is integrated as an optional processing service.
+
+AI requests are used selectively for tasks such as:
+
+* Structured information extraction
+* Scanned-document transcription
+* Ambiguous semantic comparison
+* Email classification where configured
+
+Responses are validated against expected structures before being accepted.
+
+The backend also includes safeguards such as bounded retries and error handling for malformed responses, unavailable models, or API rate limits.
+
+### Source Evidence Handling
+
+The backend stores source information together with extracted values whenever possible.
+
+Depending on the document type, evidence may include:
+
+* Page references
+* Extracted text
+* Field locations
+* Attachment names
+* Original values
+* Document-specific source information
+
+The frontend uses this metadata to locate and display the relevant source information without independently recreating the extraction logic.
+
+### State Management
+
+The current prototype primarily uses application-level runtime stores for workflow state.
+
+These stores manage information such as:
+
+* Processed cases
+* Upload comparison sessions
+* Review records
+* Retry information
+* Escalation records
+* Submission state
+
+Because this data is mainly maintained in memory, it is treated as temporary runtime state rather than persistent production storage.
+
+### API Design
+
+The frontend communicates with the backend through REST endpoints.
+
+Important API groups include:
+
+```text
+GET  /health
+
+POST /api/process-all
+GET  /api/cases
+GET  /api/cases/{email_id}
+
+POST /api/compare-upload
+GET  /api/upload-comparisons/{comparison_id}
+
+GET  /api/export/detailed-csv
+GET  /api/submission
+```
+
+Additional endpoints support review actions, retries, escalation operations, and submission updates.
+
+### Frontend Integration
+
+The frontend is built using **Next.js, React, and TypeScript**.
+
+Backend communication is centralized so that pages and components use a consistent API connection strategy.
+
+Frontend state is based on backend responses rather than duplicating workflow logic locally. This helps keep verification results, review state, escalation state, and submission state synchronized with the backend.
+
+### Configuration Management
+
+Environment variables are used to separate configuration from source code.
+
+Configuration includes:
+
+* Inbox service URL
+* CORS origins
+* AI enablement
+* Groq API credentials
+* Upload limits
+* Email provider settings
+* Frontend backend URL
+
+Sensitive information such as API keys and passwords is kept outside the source code.
+
+### Validation and Error Handling
+
+The application includes several technical validation mechanisms:
+
+* File type validation
+* Upload size checks
+* Safe attachment path handling
+* Pydantic request validation
+* AI response validation
+* External service error handling
+* Email configuration validation
+* CORS restrictions
+* Production environment checks
+
+These controls help prevent invalid input, unsafe file access, inconsistent responses, and uncontrolled failures across external integrations.
 
 ---
 
