@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
 import { HumanReviewStatusBadge } from "@/components/review/human-review-panel";
+import { SummaryStats, type SummaryStatItem } from "@/components/summary-stats";
 import { buildCaseDetailHref } from "@/lib/case-navigation";
 import { getReviewReasonDisplay } from "@/lib/review-reason";
 import {
@@ -36,21 +37,15 @@ export function HumanReviewQueue({ cases }: { cases: HumanReviewQueueItem[] }) {
   const [search, setSearch] = useState("");
   const shown = filterReviewQueue(cases, automatedStatusFilter, humanReviewStatusFilter, search);
   const summary = summarizeReviewQueue(cases);
+  const summaryItems: SummaryStatItem[] = [
+    { label: "Queue Cases", count: summary.total, tone: "neutral" },
+    { label: "Mismatch", count: summary.mismatch, tone: "danger" },
+    { label: "Needs Review", count: summary.needsReview, tone: "warning" },
+  ];
 
   return (
     <div className="space-y-4">
-      <dl aria-label="Human Review queue summary" className="flex flex-wrap gap-x-8 gap-y-3 rounded-md border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-        {[
-          ["Queue Cases", summary.total],
-          ["Mismatch", summary.mismatch],
-          ["Needs Review", summary.needsReview],
-        ].map(([label, count]) => (
-          <div key={label} className="flex items-center gap-2">
-            <dt className="text-slate-600">{label}</dt>
-            <dd className="font-semibold tabular-nums text-slate-950">{count}</dd>
-          </div>
-        ))}
-      </dl>
+      <SummaryStats ariaLabel="Human Review queue summary" items={summaryItems} columns={3} />
 
       <div className="grid gap-4 rounded-md border border-slate-200 bg-slate-50/70 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,24rem)] lg:items-end">
         <div className="space-y-3">
