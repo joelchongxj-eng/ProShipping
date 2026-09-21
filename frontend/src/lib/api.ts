@@ -1,8 +1,8 @@
 import type { CaseStatus, VerificationCase } from "@/types/verification";
 import type { UploadComparisonResponse } from "@/types/upload";
+import type { SubmissionDispatch, SubmissionWorkflowResponse } from "@/types/outbound";
 import type {
   CreateHumanReviewRequest,
-  EscalationAssignment,
   EscalationAssignmentHistory,
   HumanReviewHistory,
   HumanReviewRecord,
@@ -15,7 +15,6 @@ import { getBackendUrl } from "./config";
 import { isUploadComparisonResponse, isVerificationCase } from "./api-validation";
 import { createUploadFormData } from "./upload";
 import {
-  isEscalationAssignment,
   isEscalationAssignmentHistory,
   isHumanReviewHistory,
   isHumanReviewRecord,
@@ -31,6 +30,14 @@ import {
   uploadHttpFallback,
 } from "./upload-api-contract";
 import { caseAttachmentProxyPath } from "./source-document";
+import { isSubmissionDispatch, isSubmissionWorkflowResponse } from "./submission-api-validation";
+import {
+  submissionProxyActionPath,
+  submissionProxyRemovePath,
+  submissionProxyResendPath,
+  submissionWorkflowPath,
+  type SubmissionActionName,
+} from "./submission-api-contract";
 
 export class ApiError extends Error {
   public readonly kind: "configuration" | "unavailable" | "http" | "invalid";
@@ -271,12 +278,63 @@ export async function getCaseEscalations(emailId: string): Promise<EscalationAss
   return data;
 }
 
-export async function resendEscalation(assignmentId: string): Promise<EscalationAssignment> {
-  const data = await request(`/api/escalations/${encodeURIComponent(assignmentId)}/resend`, { method: "POST" });
-  if (!isEscalationAssignment(data) || data.assignment_id !== assignmentId) {
-    throw new ApiError("The backend returned an invalid escalation delivery result.", "invalid");
+export async function getSubmissionWorkflow(): Promise<SubmissionWorkflowResponse> {
+  const data = await request(submissionWorkflowPath);
+  if (!isSubmissionWorkflowResponse(data)) {
+    throw new ApiError("The backend returned an invalid submission workflow.", "invalid");
   }
   return data;
+}
+
+async function submissionAction(
+  action: SubmissionActionName,
+): Promise<SubmissionDispatch> {
+  const data = await request(submissionProxyActionPath(action), { method: "POST" }, 120000, true);
+  if (!isSubmissionDispatch(data)) {
+    throw new ApiError("The backend returned an invalid submission dispatch.", "invalid");
+  }
+  return data;
+}
+
+export function submitSupervisorSubmission(): Promise<SubmissionDispatch> {
+  return submissionAction("supervisor-submit");
+}
+
+export function updateSupervisorSubmission(): Promise<SubmissionDispatch> {
+  return submissionAction("supervisor-update");
+}
+
+export function sendSenderSubmission(): Promise<SubmissionDispatch> {
+  return submissionAction("sender-send");
+}
+
+export function updateSenderSubmission(): Promise<SubmissionDispatch> {
+  return submissionAction("sender-update");
+}
+
+export async function resendSubmissionDispatch(dispatchId: string): Promise<SubmissionDispatch> {
+  const data = await request(submissionProxyResendPath(dispatchId), { method: "POST" }, 120000, true);
+  if (!isSubmissionDispatch(data) || data.parent_dispatch_id !== dispatchId) {
+    throw new ApiError("The backend returned an invalid resend dispatch.", "invalid");
+  }
+  return data;
+}
+
+export async function removeSubmissionItem(channel: "supervisor" | "sender", targetId: string): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(submissionProxyRemovePath(channel, targetId), {
+      method: "DELETE",
+      cache: "no-store",
+    });
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") console.error("Submission removal failed before receiving an HTTP response.", { error });
+    throw new ApiError("Backend unavailable. Check that the backend is running and try again.", "unavailable");
+  }
+  if (!response.ok) {
+    const detail = await getErrorDetail(response);
+    throw new ApiError(detail ?? `Backend request failed (HTTP ${response.status}).`, "http", response.status);
+  }
 }
 
 export function getCompetitionSubmissionUrl(): string {
