@@ -949,3 +949,238 @@ NEXT_PUBLIC_BACKEND_URL=http://localhost:8001
 
 ---
 
+## 🔄 Main Workflow
+
+ProShipping supports two main entry points: **inbox-based processing** and **manual document verification**.
+
+### Inbox-Based Verification
+
+```text
+Incoming Email
+      │
+      ▼
+Retrieve Email from Inbox Service
+      │
+      ▼
+Email Classification
+      │
+      ├── BL Comparison
+      ├── SI Request
+      ├── Invoice Query
+      ├── General
+      └── Spam
+              │
+              ▼
+     BL Comparison Request
+              │
+              ▼
+Identify SI + Draft BL Attachments
+              │
+              ▼
+Extract Seven Shipping Fields
+              │
+              ▼
+Normalize Extracted Values
+              │
+              ▼
+Compare SI Against Draft BL
+              │
+       ┌──────┼───────┐
+       ▼      ▼       ▼
+    MATCH  MISMATCH  NEEDS_REVIEW
+                       │
+                       ▼
+                 Human Review
+                       │
+              ┌────────┼────────┐
+              ▼        ▼        ▼
+           Correct   Retry   Escalate
+                       │
+                       ▼
+              Final Verified Result
+```
+
+The system compares seven critical shipment fields:
+
+1. **Shipper**
+2. **Consignee**
+3. **Notify Party**
+4. **Port of Loading**
+5. **Port of Discharge**
+6. **Container Count**
+7. **Gross Weight**
+
+Each processed case receives an overall status such as:
+
+* `MATCH`
+* `MISMATCH`
+* `NEEDS_REVIEW`
+* `FAILED`
+
+### Manual Verification
+
+Users can also upload one Shipping Instruction and one draft Bill of Lading directly through the application.
+
+```text
+Upload SI + Draft BL
+        │
+        ▼
+Document Validation
+        │
+        ▼
+Text / Document Extraction
+        │
+        ▼
+Seven-Field Extraction
+        │
+        ▼
+Normalization
+        │
+        ▼
+Field Comparison
+        │
+        ▼
+Verification Result
+        │
+        ├── MATCH
+        ├── MISMATCH
+        └── NEEDS_REVIEW
+```
+
+Both processing methods ultimately use the same comparison logic and generate field-level results that can be inspected through the frontend or API.
+
+---
+
+## ⚙️ Implementation Details
+
+### Email Processing
+
+The backend communicates asynchronously with the external Inbox service using `httpx`. Incoming emails are converted into internal case records and classified into the appropriate operational category.
+
+When an email is identified as a **BL comparison request**, the backend locates the associated Shipping Instruction and draft Bill of Lading attachments before beginning document verification.
+
+### Document Extraction
+
+ProShipping supports:
+
+* `.txt`
+* `.pdf`
+* `.docx`
+* `.xlsx`
+
+Document-processing libraries including **PyMuPDF, pypdf, python-docx, openpyxl, and Pillow** are used to extract or prepare document content.
+
+When AI document processing is enabled, Groq can additionally extract structured shipping information and transcribe scanned-document images.
+
+### Seven-Field Extraction
+
+Each Shipping Instruction and draft Bill of Lading is converted into a common structured representation containing:
+
+```text
+Shipper
+Consignee
+Notify Party
+Port of Loading
+Port of Discharge
+Container Count
+Gross Weight
+```
+
+The system also preserves information such as the original extracted value, normalized value, source evidence, and available confidence information.
+
+### Normalization and Comparison
+
+Before comparing documents, extracted values are normalized to reduce false mismatches caused by harmless formatting differences.
+
+For example:
+
+```text
+SI: Port of Loading
+BL: Load Port
+```
+
+or differently formatted versions of the same company, location, quantity, or weight may still represent equivalent shipment information.
+
+When enabled, semantic AI comparison can evaluate cases where simple deterministic comparison is insufficient. The semantic comparison can return:
+
+* `EQUIVALENT`
+* `DIFFERENT`
+* `UNCERTAIN`
+
+Uncertain results are not automatically accepted and can instead be routed for human review.
+
+### Manual Upload Processing
+
+The backend provides a dedicated upload comparison endpoint for directly submitting an SI and BL pair.
+
+Uploaded files are:
+
+1. Validated by file extension
+2. Checked against the configured maximum file size
+3. Stored temporarily
+4. Processed using the document comparison pipeline
+5. Assigned a unique comparison ID
+6. Made available for subsequent review and source inspection
+
+Unsafe paths and unsupported attachment formats are rejected by the API.
+
+### Human Review and Retry
+
+Cases that cannot be verified reliably can enter the Human Review workflow.
+
+The backend contains dedicated services for:
+
+* Human review records
+* Review queues
+* Retry execution
+* Supervisor escalation
+* Submission workflows
+
+This allows the system to preserve the original automated result while separately recording corrections or reviewer decisions.
+
+### Evidence-First Verification
+
+ProShipping does not rely only on the final `MATCH` or `MISMATCH` status. The verification model retains supporting information so users can understand why a result was produced.
+
+Depending on the source document, supporting evidence can include extracted text, PDF references, document locations, original attachments, raw values, normalized values, and comparison explanations.
+
+### API Endpoints
+
+Important backend endpoints include:
+
+```text
+GET  /health
+POST /api/process-all
+GET  /api/cases
+GET  /api/cases/{email_id}
+
+POST /api/compare-upload
+GET  /api/upload-comparisons/{comparison_id}
+
+GET  /api/export/detailed-csv
+GET  /api/submission
+```
+
+Additional routers handle the Human Review, escalation, retry, and submission workflows.
+
+### Data Storage
+
+The current implementation primarily uses application-level stores for active processing data rather than a persistent production database.
+
+As a result, operational state such as processed cases and review-related information should be treated as runtime data unless it has been exported or otherwise persisted externally.
+
+### Security and Validation
+
+Several safeguards are implemented in the backend, including:
+
+* File-extension validation
+* Upload-size limits
+* Safe attachment-path checks
+* Pydantic data validation
+* Configurable CORS restrictions
+* Structured AI response validation
+* API-key-based external AI access
+* Email-delivery configuration validation
+* Production-specific configuration checks
+
+These controls help ensure that uploaded files, external service requests, and generated results are handled in a predictable and controlled manner.
