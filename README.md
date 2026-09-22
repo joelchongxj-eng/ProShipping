@@ -824,7 +824,6 @@ AI requests are used selectively for tasks such as:
 * Structured information extraction
 * Scanned-document transcription
 * Ambiguous semantic comparison
-* Email classification where configured
 
 Responses are validated against expected structures before being accepted.
 
@@ -1069,7 +1068,7 @@ The FastAPI backend loads environment variables from a local `.env` file using `
 | `AI_ENABLED`          | Set to `1` to enable AI-assisted document processing               | `0`                  |
 | `SEMANTIC_AI_ENABLED` | Set to `1` to enable AI-assisted semantic equivalence checking     | `0`                  |
 | `GROQ_API_KEY`        | Groq API key required when AI functionality is enabled             | None                 |
-| `GROQ_MODEL`          | Groq model used for classification and structured field extraction | `openai/gpt-oss-20b` |
+| `GROQ_MODEL`          | Groq model used for supported structured field extraction          | `openai/gpt-oss-20b` |
 | `GROQ_VISION_MODEL`   | Vision model used for scanned-document transcription               | `qwen/qwen3.8-27b`   |
 
 Example:
@@ -1129,6 +1128,9 @@ Create `frontend/.env.local` and configure the backend URL:
 
 ```dotenv
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8001
+
+# Server-side only. Must match the backend value.
+OUTBOUND_EMAIL_AUTH_TOKEN=
 ```
 
 ---
