@@ -73,6 +73,25 @@ test("case attachment proxy limits persistent Inbox 502 to two attempts", async 
   assert.deepEqual(await result.json(), { detail: "Inbox service unavailable." });
 });
 
+test("case attachment proxy retries even when cancelling a failed response never settles", async () => {
+  let attempts = 0;
+  const stalledErrorBody = new ReadableStream({
+    cancel() { return new Promise(() => {}); },
+  });
+  const forwarded = forwardCaseAttachmentRequest("https://backend.example/attachment", async () => {
+    attempts += 1;
+    return attempts === 1
+      ? new Response(stalledErrorBody, { status: 502 })
+      : new Response("original SI text", { headers: { "Content-Type": "text/plain" } });
+  });
+  const result = await Promise.race([
+    forwarded,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("proxy remained pending after 502")), 100)),
+  ]);
+  assert.equal(attempts, 2);
+  assert.equal(await result.text(), "original SI text");
+});
+
 test("TXT 200 responses return the original text with line breaks", async () => {
   const value = await fetchTextSource("http://backend/source", async () => new Response("LINE 1\nLINE 2\n", { headers: { "Content-Type": "text/plain; charset=utf-8" } }));
   assert.equal(value, "LINE 1\nLINE 2\n");
@@ -91,6 +110,16 @@ test("TXT errors distinguish missing, invalid, server, network, and malformed re
   await assert.rejects(() => fetchTextSource("http://backend/source", async () => { throw new TypeError("fetch failed"); }), /Unable to connect to the backend/);
   await assert.rejects(() => fetchTextSource("http://backend/source", async () => new Response("<html>wrong response</html>", { headers: { "Content-Type": "text/html" } })), /unsupported response/);
   await assert.rejects(() => fetchTextSource("http://backend/source", async () => ({ ok: true, status: 200, headers: new Headers({ "Content-Type": "text/plain" }), text: async () => { throw new Error("decode"); } })), /could not be read/);
+});
+
+test("TXT fetch times out instead of leaving the source pane loading indefinitely", async () => {
+  const pendingFetch = (_url, init) => new Promise((_, reject) => {
+    init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true });
+  });
+  await assert.rejects(
+    () => fetchTextSource("/api/case-attachments/email_025?filename=attachments%2Femail_025_SI.txt", pendingFetch, { timeoutMs: 20 }),
+    (error) => error instanceof SourceDocumentError && error.message === "Source file request timed out.",
+  );
 });
 
 test("source comparison composes both independently highlighted document panes", async () => {

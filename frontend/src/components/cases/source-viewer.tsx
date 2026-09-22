@@ -53,7 +53,7 @@ function SourceDocumentPane({ side, source, highlight }: { side: SourceSide; sou
     const controller = new AbortController();
     setTextContent(null);
     setError("");
-    fetchTextSource(source.url, (input, init) => fetch(input, { ...init, signal: controller.signal }))
+    fetchTextSource(source.url, fetch, { signal: controller.signal })
       .then(setTextContent)
       .catch((reason: unknown) => {
         if (!(reason instanceof DOMException && reason.name === "AbortError")) {

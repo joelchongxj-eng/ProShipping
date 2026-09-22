@@ -26,7 +26,8 @@ export async function forwardCaseAttachmentRequest(
 ): Promise<Response> {
   let upstream = await fetcher(upstreamUrl, { cache: "no-store" });
   if (upstream.status === 502) {
-    await upstream.body?.cancel();
+    // A stalled stream cancellation must not block the one allowed retry.
+    void upstream.body?.cancel().catch(() => {});
     upstream = await fetcher(upstreamUrl, { cache: "no-store" });
   }
 
@@ -42,11 +43,18 @@ export async function forwardCaseAttachmentRequest(
   });
 }
 
-export async function fetchTextSource(url: string, fetcher: SourceFetch = fetch): Promise<string> {
+export async function fetchTextSource(
+  url: string,
+  fetcher: SourceFetch = fetch,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<string> {
+  const timeoutSignal = AbortSignal.timeout(options.timeoutMs ?? 40_000);
+  const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
   let response: Response;
   try {
-    response = await fetcher(url, { cache: "no-store" });
+    response = await fetcher(url, { cache: "no-store", signal });
   } catch (error) {
+    if (timeoutSignal.aborted) throw new SourceDocumentError("Source file request timed out.");
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     if (process.env.NODE_ENV !== "production") {
       console.error("Source request failed before an HTTP response was received.", { url, error });
@@ -69,6 +77,8 @@ export async function fetchTextSource(url: string, fetcher: SourceFetch = fetch)
   try {
     return await response.text();
   } catch {
+    if (timeoutSignal.aborted) throw new SourceDocumentError("Source file request timed out.");
+    if (options.signal?.aborted) throw options.signal.reason;
     throw new SourceDocumentError("Source file could not be read.");
   }
 }
