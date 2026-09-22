@@ -2,8 +2,14 @@
 
 ## 🔗 Project Links
 
-- 🌐 **Prototype Demo:** [https://pro-shipping.vercel.app/](https://pro-shipping.vercel.app/)
-- 🎥 **Video Slides:** [View Presentation Slides](https://canva.link/9vzj2ivb1de1lqt)
+### 🌐 Prototype Demo
+[Launch ProShipping](https://pro-shipping.vercel.app/)
+
+### 🎬 Video Demo
+[Watch ProShipping Demo](https://youtu.be/QvgbRvmM_Vw?si=BEbzFhOuoZ_4MSSv)
+
+### 🎥 Video Presentation Slides
+[View Presentation Slides](https://canva.link/9vzj2ivb1de1lqt)
 
 ## 🚢 Problem Statement
 
