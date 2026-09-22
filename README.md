@@ -1010,6 +1010,9 @@ Configure the frontend environment variables in `.env.local`, for example:
 
 ```dotenv
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8001
+
+# Server-side only. Must match the backend value.
+OUTBOUND_EMAIL_AUTH_TOKEN=
 ```
 
 Start the development server:
