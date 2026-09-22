@@ -1396,6 +1396,10 @@ Current limitations include:
 
 ---
 
+## Future Roadmap
+
+---
+
 ### 🧭 Roadmap Overview
 
 ```text
