@@ -421,7 +421,7 @@ Port of Loading
 Load Port
 ```
 
-These may refer to the same field despite the different wording.
+These may refer to the same shipment information despite the different wording.
 
 ProShipping therefore preserves both the **original extracted value** and its **normalized form**.
 
@@ -435,7 +435,7 @@ This makes it easier to distinguish genuine discrepancies from harmless differen
 
 ---
 
-### 🎯 Extraction Confidence
+### 🎯 5. Extraction Confidence
 
 Each extracted value can display a backend-provided **extraction confidence indicator**.
 
@@ -506,7 +506,7 @@ Reviewed Value
 Effective Value
 ```
 
-This allows human corrections without removing the original automated result.
+This allows human corrections to be applied without removing or rewriting the original automated result.
 
 ---
 
@@ -514,22 +514,22 @@ This allows human corrections without removing the original automated result.
 
 Human decisions remain traceable throughout the verification process.
 
-ProShipping records:
+ProShipping records information such as:
 
 - Affected fields
 - Document side
 - Original automated values
 - Corrected values
 - Reviewer decisions
-- Notes
+- Review notes
 - Escalation reasons
 - Information requests
 - Retry outcomes
 - Timestamps
 
-Separate histories preserve retry and escalation activity.
+Separate histories preserve review, retry, and escalation activity.
 
-This provides a clear record of how a verification result changed after human intervention.
+This provides a clear record of how a case was handled after the original automated verification.
 
 ---
 
@@ -537,9 +537,9 @@ This provides a clear record of how a verification result changed after human in
 
 Missing, unreadable, incomplete, and failed results remain clearly visible instead of being incorrectly presented as successful matches.
 
-Eligible cases can be reprocessed, while the new outcome is stored separately from the original automated result.
+Eligible cases can be reprocessed through the retry workflow.
 
-This allows the workflow to recover from processing failures without losing the history of what occurred previously.
+The retry outcome is stored separately from the original automated result, allowing ProShipping to recover from processing problems without losing the history of what occurred previously.
 
 ---
 
@@ -551,7 +551,7 @@ ProShipping therefore supports two follow-up workflows.
 
 #### Supervisor Escalation
 
-Reviewers can escalate an unresolved issue together with:
+Reviewers can escalate an unresolved issue together with information such as:
 
 - Affected field
 - SI and BL values
@@ -560,13 +560,13 @@ Reviewers can escalate an unresolved issue together with:
 - Escalation reason
 - Requested supervisor decision
 
-These cases are placed into a dedicated supervisor queue.
+These cases are placed into a dedicated **supervisor queue** for further handling.
 
 #### Sender Follow-Up
 
 When additional information is required, reviewers can record what clarification is needed from the sender.
 
-These cases are placed into a dedicated sender follow-up queue.
+These cases are placed into a dedicated **sender follow-up queue**.
 
 Both workflows support:
 
@@ -576,114 +576,28 @@ Both workflows support:
 - Failed delivery states
 - Resend actions
 
-This extends ProShipping beyond simply finding discrepancies into helping users resolve them.
+This extends ProShipping beyond identifying discrepancies by helping users manage unresolved cases through a traceable operational workflow.
 
 ---
 
-Next, update the **Key Features** section. The audit found four things to fix here: confidence wording, manual-upload scope, competition export wording, and two implemented features that are currently underrepresented—**editable outbound drafts** and **detailed CSV export**. 
+### ✉️ 11. Editable Outbound Communication
 
-### 1. Replace the Extraction Confidence section
+When a case requires escalation or additional information, ProShipping can create an outbound communication item for the appropriate workflow.
 
-Use this:
+Users can:
 
-> ### 🎯 Extraction Confidence
->
-> Each extracted value can display a backend-provided **extraction confidence indicator**.
->
-> This indicator helps reviewers identify values that may require closer inspection. It reflects the confidence assigned during the extraction process, but it is **not a calibrated probability of correctness** and does not represent the likelihood that the SI and draft BL match.
->
-> This allows users to distinguish between:
->
-> ```text
-> Higher-confidence extraction
-> ```
->
-> and:
->
-> ```text
-> Lower-confidence extraction
-> ```
->
-> where additional human inspection may be appropriate.
+- Review generated email drafts.
+- Edit the recipient, subject, and message where permitted.
+- Preview the communication before sending.
+- Send the message through the configured email provider.
+- View delivery status and dispatch history.
+- Resend or update communications when necessary.
 
-This is more accurate than saying “99% confidence means 99% probability the value is correct.”
+Messages are not automatically sent when a review action is created. The user remains in control of reviewing and sending outbound communication.
 
 ---
 
-### 2. Update the Manual Upload section
-
-Change any wording like:
-
-> Manual uploads use the same complete verification workflow.
-
-to:
-
-> ### 📤 Manual SI–BL Upload
->
-> Users can manually upload one **Shipping Instruction** and one **draft Bill of Lading** for verification.
->
-> Supported formats include:
->
-> * PDF
-> * TXT
-> * DOCX
-> * XLSX
->
-> Manual uploads use the same **seven-field comparison and evidence presentation** as inbox-based cases, allowing users to inspect extracted values, normalized values, comparison results, confidence indicators, and supporting source evidence.
->
-> The current manual-upload result page focuses on **comparison and evidence review**. The full Human Review action interface is provided through the main competition case-detail workflow.
-
-That last sentence is important because the current upload page does not expose every Human Review action. 
-
----
-
-### 3. Add an Editable Communication Draft feature
-
-This is implemented but should be more visible:
-
-> ### ✉️ Editable Outbound Communication
->
-> When a case requires escalation or additional information, ProShipping can create an outbound communication item for the appropriate workflow.
->
-> Users can:
->
-> * Review generated email drafts.
-> * Edit the recipient, subject, and message where permitted.
-> * Preview the communication before sending.
-> * Send the message through the configured email provider.
-> * View delivery status and dispatch history.
-> * Resend or update communications when necessary.
->
-> This keeps external communication under human control rather than sending messages automatically.
-
-This is a good feature for judges because it shows the system goes beyond simply detecting errors.
-
----
-
-### 4. Improve the Export feature
-
-Use:
-
-> ### 📊 Results Export
->
-> ProShipping provides two export options for processed verification cases:
->
-> * **Competition JSON** for structured submission output.
-> * **Detailed CSV** for easier inspection and analysis of verification results.
->
-> Exports are generated from the cases that have already been processed and are currently stored by the running backend.
->
-> Therefore, users should process the intended Inbox dataset before downloading a complete dataset result. Exporting does not automatically process unprocessed cases or send any emails.
-
----
-
-With those changes, your Key Features section more accurately describes what the current system actually does.
-
-The **next change after this should be the Main Workflow diagram**, because right now it ends with **“Final Verified Result”**, which slightly misrepresents how your Human Review results are actually stored.
-
----
-
-### 📤 Manual SI–BL Upload
+### 📤 12. Manual SI–BL Upload
 
 Users can manually upload one **Shipping Instruction** and one **draft Bill of Lading** for verification.
 
@@ -708,22 +622,22 @@ The full **Human Review action interface** is provided through the main competit
 
 ---
 
-### 📊 Results Export
+### 📊 13. Results Export
 
 ProShipping provides two export options for processed verification cases:
 
 - **Competition JSON** for structured submission output.
 - **Detailed CSV** for easier inspection and analysis of verification results.
 
-Exports are generated from the cases that have already been processed and are currently stored by the running backend.
+Exports are generated from cases that have already been processed and are currently stored by the running backend.
 
-Therefore, users should process the intended Inbox dataset before downloading a complete dataset result.
+Users should therefore process the intended Inbox dataset before downloading a complete dataset result.
 
 > **Note:** Exporting does not automatically process unprocessed cases or send any emails.
 
 ---
 
-### ✅ What ProShipping Delivers
+### ✅ 14. What ProShipping Delivers
 
 Together, these features form a complete verification workflow:
 
@@ -744,7 +658,7 @@ Human Review when needed
    ↓
 Resolve / Escalate / Retry
    ↓
-Final Verified Result
+Traceable Review Outcome
 ```
 
 ProShipping is built around three core principles:
@@ -753,7 +667,7 @@ ProShipping is built around three core principles:
 Reduce repetitive email triage and manual field-by-field document checking.
 
 **🔎 Traceability**  
-Show the values, evidence, confidence, comparison reasoning, and review history behind verification results.
+Show the values, evidence, confidence indicators, comparison reasoning, and review history behind verification results.
 
 **👤 Human Oversight**  
 Automate routine cases while preserving human judgement for missing, uncertain, unreadable, or disputed information.
