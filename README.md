@@ -692,7 +692,7 @@ These libraries allow ProShipping to process shipping documents in formats inclu
 
 ### AI Processing
 
-* **Groq API** – optional AI-assisted email classification, document extraction, scanned-document transcription, and semantic comparison
+* **Groq API** – optional AI assistance for supported document-processing and semantic-comparison workflows, including difficult PDF inputs. Inbox email classification itself uses deterministic rules.
 
 ### Testing
 
@@ -706,46 +706,50 @@ These libraries allow ProShipping to process shipping documents in formats inclu
 ProShipping follows a client-server architecture consisting of a **Next.js frontend**, a **FastAPI backend**, an external **Inbox service**, and optional external AI and email-delivery services.
 
 ```text
-                    ┌─────────────────────┐
-                    │    Next.js Client   │
-                    │   User Interface    │
-                    └──────────┬──────────┘
-                               │
-                         REST API / HTTP
-                               │
-                               ▼
-                    ┌─────────────────────┐
-                    │   FastAPI Backend   │
-                    │                     │
-                    │ • Email Processing  │
-                    │ • Document Parsing  │
-                    │ • Normalization     │
-                    │ • Comparison        │
-                    │ • Human Review      │
-                    │ • Submission Export │
-                    └──────┬───────┬──────┘
-                           │       │
-              ┌────────────┘       └─────────────┐
-              ▼                                  ▼
-    ┌──────────────────┐                ┌─────────────────┐
-    │ External Inbox   │                │    Groq API     │
-    │ Service          │                │   (Optional)    │
-    │                  │                │                 │
-    │ Emails +         │                │ Classification  │
-    │ Attachments      │                │ Extraction      │
-    └──────────────────┘                │ Vision/OCR      │
-                                        │ Semantic Check  │
-                                        └─────────────────┘
+Next.js Frontend
+       │
+       │ REST / HTTP
+       ▼
+FastAPI Backend
+       │
+       ├── Deterministic Email Classification
+       ├── Document Parsing
+       ├── Field Extraction
+       ├── Normalization
+       ├── Seven-Field Comparison
+       ├── Evidence Management
+       ├── Human Review
+       ├── Retry & Escalation
+       └── Submission / Follow-Up
+       │
+       ├──────────────► External Inbox Service
+       │                  │
+       │                  └── Emails & Attachments
+       │
+       ├──────────────► Groq API (Optional)
+       │                  │
+       │                  ├── Difficult Document Processing
+       │                  ├── Scanned-PDF Assistance
+       │                  └── Semantic Comparison
+       │
+       └──────────────► Email Delivery Provider
+                          │
+                          ├── Supervisor Escalation
+                          └── Sender Follow-Up
 ```
 
 <img width="1280" height="853" alt="image" src="https://github.com/user-attachments/assets/f58d3f37-734d-4e5c-82bc-9e351ffcba40" />
 
 
-The frontend communicates with the backend through REST API endpoints. The backend is responsible for retrieving inbox data, accepting manually uploaded document pairs, extracting shipping information, normalizing values, comparing the Shipping Instruction against the draft Bill of Lading, and determining the final verification status.
+The Next.js frontend provides the dashboard, inbox, case review, source comparison, Human Review, manual upload, and submission interfaces.
 
-For inbox-based processing, the backend connects to an external Inbox service to retrieve emails and their attachments. AI processing can optionally be enabled through Groq to support more complex document extraction, scanned documents, email classification, and semantic equivalence checking.
+The FastAPI backend handles the main verification workflow, including deterministic email classification, document processing, normalization, comparison, evidence generation, review actions, retries, escalation, and export.
 
-Processed cases, uploaded comparison sessions, human-review records, retry records, escalation records, and submission workflow data are currently managed by backend services during application execution.
+ProShipping connects to a separate Inbox service through HTTP APIs to retrieve emails and document attachments.
+
+The Groq API is an optional processing layer used only in supported workflows where additional assistance is required, such as difficult document inputs and semantic comparison. The current Process Inbox batch primarily uses deterministic processing.
+
+Outbound supervisor and sender communications are handled separately through the configured email-delivery provider.
 
 ---
 
@@ -1762,11 +1766,13 @@ The proposed solution automates this verification process by extracting seven im
 
 ### 🤖 AI and Cloud Infrastructure Integration
 
-ProShipping integrates the Groq API as an optional AI processing layer. AI is mainly used to support email classification, document information extraction, scanned or image-only document processing, and semantic comparison of values that cannot be reliably evaluated using deterministic rules alone.
+ProShipping integrates the Groq API as an optional AI processing layer. AI is used selectively to support difficult document-processing scenarios and semantic comparison when deterministic methods are insufficient. Inbox email classification itself is performed using deterministic rules rather than AI.
 
-The FastAPI backend sends selected document content or prompts to Groq and validates the returned results before they are used in the verification workflow. AI is treated as a supporting component rather than the sole source of truth. Deterministic extraction and normalization remain important, and uncertain AI-generated results can be routed to Human Review.
+The current Process Inbox workflow primarily uses deterministic document extraction, normalization, and comparison. Optional AI fallback is available in supported workflows such as manual uploads and eligible retry processing when configured.
 
-The application also connects to an external Inbox service through HTTP APIs to retrieve emails and document attachments. This service-based architecture allows the frontend, backend, inbox service, and AI provider to operate as separate components while communicating through defined APIs.
+The FastAPI backend sends selected document content or prompts to Groq and validates the returned results before they are used in the verification workflow. Deterministic extraction and normalization remain the primary processing methods, while uncertain results can be routed to Human Review rather than being automatically accepted.
+
+The application also connects to an external Inbox service through HTTP APIs to retrieve emails and document attachments. This service-based architecture allows the frontend, backend, Inbox service, and optional AI provider to operate as separate components while communicating through defined APIs.
 
 ### 🧪 User Feedback and Testing
 
